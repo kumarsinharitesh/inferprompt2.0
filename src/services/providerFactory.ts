@@ -23,7 +23,7 @@ export const PROVIDER_META: ProviderMeta[] = [
     label: "Sarvam AI",
     description: "[Model: sarvam-105b] Indic language models, low-latency inference.",
     requiresKey: true,
-    envKey: "VITE_SARVAM_API_KEY",
+    envKey: "SARVAM_API_KEY",
     docsUrl: "https://docs.sarvam.ai/",
   },
   {
@@ -31,7 +31,7 @@ export const PROVIDER_META: ProviderMeta[] = [
     label: "OpenRouter Free Router",
     description: "[Model: openrouter/free] Free, fast automatic routing to available models.",
     requiresKey: true,
-    envKey: "VITE_OPENROUTER_API_KEY",
+    envKey: "OPENROUTER_API_KEY",
     docsUrl: "https://openrouter.ai/docs",
   },
   {
@@ -39,7 +39,7 @@ export const PROVIDER_META: ProviderMeta[] = [
     label: "Gemini",
     description: "[Model: gemini-1.5-flash] Google's multimodal foundation model.",
     requiresKey: true,
-    envKey: "VITE_GEMINI_API_KEY",
+    envKey: "GEMINI_API_KEY",
     docsUrl: "https://ai.google.dev/",
   },
   {
@@ -47,7 +47,7 @@ export const PROVIDER_META: ProviderMeta[] = [
     label: "Groq",
     description: "[Model: llama3-8b-8192] Ultra-fast LPU inference.",
     requiresKey: true,
-    envKey: "VITE_GROQ_API_KEY",
+    envKey: "GROQ_API_KEY",
     docsUrl: "https://console.groq.com/",
   },
 ];

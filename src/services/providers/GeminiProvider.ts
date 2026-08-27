@@ -2,10 +2,10 @@ import type { InferenceProvider, InferenceRequest } from "../../types";
 import { local } from "../../utils/storage";
 
 function getGeminiKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.VITE_GEMINI_API_KEY) {
-    return (process as any).env.VITE_GEMINI_API_KEY;
+  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.GEMINI_API_KEY) {
+    return (process as any).env.GEMINI_API_KEY;
   }
-  return (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
+  return (import.meta as any).env?.GEMINI_API_KEY || "";
 }
 
 export class GeminiProvider implements InferenceProvider {

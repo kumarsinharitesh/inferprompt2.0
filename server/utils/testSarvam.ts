@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const key = process.env.VITE_SARVAM_API_KEY;
+const key = process.env.SARVAM_API_KEY;
 const prompt = `Output JSON: {"riskLevel": "high"}`;
 const req = {
     model: 'sarvam-105b',

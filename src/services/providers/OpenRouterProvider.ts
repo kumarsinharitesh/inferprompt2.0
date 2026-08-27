@@ -7,10 +7,10 @@ interface OpenRouterDelta {
 }
 
 function getOpenRouterKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.VITE_OPENROUTER_API_KEY) {
-    return (process as any).env.VITE_OPENROUTER_API_KEY;
+  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.OPENROUTER_API_KEY) {
+    return (process as any).env.OPENROUTER_API_KEY;
   }
-  return (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "";
+  return (import.meta as any).env?.OPENROUTER_API_KEY || "";
 }
 
 export class OpenRouterProvider implements InferenceProvider {

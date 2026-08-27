@@ -3,10 +3,10 @@ import { local } from "../../utils/storage";
 import { makeSseStream } from "../../utils/sseParser";
 
 function getGroqKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.VITE_GROQ_API_KEY) {
-    return (process as any).env.VITE_GROQ_API_KEY;
+  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.GROQ_API_KEY) {
+    return (process as any).env.GROQ_API_KEY;
   }
-  return (import.meta as any).env?.VITE_GROQ_API_KEY || "";
+  return (import.meta as any).env?.GROQ_API_KEY || "";
 }
 
 interface GroqDelta {

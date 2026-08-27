@@ -3,10 +3,10 @@ import { local } from "../../utils/storage";
 import { makeSseStream } from "../../utils/sseParser";
 
 function getSarvamKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.VITE_SARVAM_API_KEY) {
-    return (process as any).env.VITE_SARVAM_API_KEY;
+  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.SARVAM_API_KEY) {
+    return (process as any).env.SARVAM_API_KEY;
   }
-  return (import.meta as any).env?.VITE_SARVAM_API_KEY || "";
+  return (import.meta as any).env?.SARVAM_API_KEY || "";
 }
 
 export class SarvamProvider implements InferenceProvider {
@@ -16,7 +16,7 @@ export class SarvamProvider implements InferenceProvider {
     const rawKey = customKey || local.getKey("sarvam") || getSarvamKey() || "";
     this.key = rawKey.trim().replace(/^sarvam--/i, "");
     if (!this.key) throw new Error(
-      "Sarvam AI needs an API key — add it via the Keys panel or set VITE_SARVAM_API_KEY in .env.local"
+      "Sarvam AI needs an API key — add it via the Keys panel or set SARVAM_API_KEY in .env.local"
     );
   }
 
