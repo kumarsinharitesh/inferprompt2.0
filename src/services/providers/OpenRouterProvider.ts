@@ -30,8 +30,8 @@ export class OpenRouterProvider implements InferenceProvider {
     // Risk analysis requires short, structured JSON. A compact free model
     // avoids the slow, variable routing to large reasoning models.
     this.riskModel = (typeof process !== 'undefined' && (process as any).env)
-      ? ((process as any).env.VITE_OPENROUTER_RISK_MODEL ?? "liquid/lfm-2.5-1.2b-instruct:free")
-      : ((import.meta as any).env?.VITE_OPENROUTER_RISK_MODEL ?? "liquid/lfm-2.5-1.2b-instruct:free");
+      ? ((process as any).env.VITE_OPENROUTER_RISK_MODEL ?? "google/gemini-2.5-flash:free")
+      : ((import.meta as any).env?.VITE_OPENROUTER_RISK_MODEL ?? "google/gemini-2.5-flash:free");
     if (!this.key) throw new Error("OpenRouter needs an API key — add it via the Keys panel");
   }
 
