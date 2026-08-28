@@ -222,7 +222,7 @@ const RiskAnalyzerPage: React.FC = () => {
     const activeResults = Object.values(results);
 
     return (
-        <div className="w-full max-w-[1700px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-10 pb-20">
+        <div className="w-full max-w-[1700px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-5 sm:gap-6 lg:gap-10 pb-20">
 
             {/* ------------------------------------------------------------- */}
             {/* LEFT COLUMN: Inputs & Controls (Sticky on Desktop)            */}
@@ -282,7 +282,7 @@ const RiskAnalyzerPage: React.FC = () => {
                                    px-6 py-4 rounded-xl font-black text-lg transition-all focus:outline-none focus:ring-4 focus:ring-amber-500/20 shadow-xl
                                    ${analyzeState === "running"
                                         ? "bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700"
-                                        : "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black shadow-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                                        : "bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black shadow-amber-500/20 shadow-[0_0_20px_rgba(47,128,237,0.22)]"
                                     }`}
                             >
                                 {analyzeState === "running" ? (
@@ -309,7 +309,7 @@ const RiskAnalyzerPage: React.FC = () => {
                             <span className="text-sm font-bold text-red-500">You've completely depleted your Risk Analysis credits.</span>
                             <Link
                                 to="/billing"
-                                className="bg-amber-500 hover:bg-amber-400 text-black font-black px-8 py-3 rounded-xl text-sm transition-all focus:ring-4 focus:ring-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                                className="bg-amber-500 hover:bg-amber-400 text-black font-black px-8 py-3 rounded-xl text-sm transition-all focus:ring-4 focus:ring-amber-500/20 shadow-[0_0_20px_rgba(47,128,237,0.22)]">
                                 Buy Credits
                             </Link>
                         </div>
@@ -323,7 +323,7 @@ const RiskAnalyzerPage: React.FC = () => {
             <div className="xl:col-span-8 flex flex-col gap-10">
 
                 {!platformResult && analyzeState !== "running" && (
-                    <div className="flex flex-col items-center justify-center text-center h-full min-h-[500px] border-2 border-dashed border-[#1e1e2c] bg-[#12121a]/30 rounded-3xl p-10">
+                    <div className="flex flex-col items-center justify-center text-center h-full min-h-[280px] sm:min-h-[420px] border-2 border-dashed border-[#1e1e2c] bg-[#12121a]/30 rounded-3xl p-5 sm:p-10">
                         <div className="p-4 bg-[#1e1e2c]/50 rounded-2xl mb-6">
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-400">
                                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

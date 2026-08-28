@@ -75,10 +75,10 @@ const BillingPage: React.FC = () => {
                 <div className="flex flex-col gap-6">
                     <div className="bg-[#12121a] border border-[#1e1e2c] p-6 rounded-2xl flex flex-col items-center gap-4 text-center">
                         <span className="text-[11px] uppercase tracking-widest font-bold text-slate-500">Current Balance</span>
-                        <span className="text-6xl font-black text-amber-500 tabular-nums">{balanceTotals.balance}</span>
+                        <span className="text-5xl sm:text-6xl font-black text-amber-500 tabular-nums">{balanceTotals.balance}</span>
                         <button
                             onClick={() => setShowModal(true)}
-                            className="bg-amber-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-amber-400 transition-colors shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                            className="w-full sm:w-auto bg-amber-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-amber-400 transition-colors shadow-[0_0_20px_rgba(47,128,237,0.22)]"
                         >
                             Buy Credits
                         </button>
@@ -105,7 +105,7 @@ const BillingPage: React.FC = () => {
                     ) : (
                         <div className="flex flex-col gap-3">
                             {payments.map(p => (
-                                <div key={(p as any)._id || p.id} className="bg-[#12121a] border border-[#1e1e2c] p-4 rounded-xl flex items-center justify-between">
+                                <div key={(p as any)._id || p.id} className="bg-[#12121a] border border-[#1e1e2c] p-4 rounded-xl flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-slate-300">{p.credits} Credits</span>
@@ -137,7 +137,7 @@ const BillingPage: React.FC = () => {
                 ) : (
                     <div className="flex flex-col gap-2">
                         {transactions.map((t) => (
-                            <div key={t._id} className="bg-[#12121a] border border-[#1e1e2c] p-4 flex justify-between items-center rounded-xl">
+                            <div key={t._id} className="bg-[#12121a] border border-[#1e1e2c] p-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl">
                                 <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-2">
                                         <span className={`font-bold ${t.amount < 0 ? 'text-amber-500' : 'text-emerald-400'}`}>

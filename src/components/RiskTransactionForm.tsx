@@ -198,7 +198,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                             1. Transaction Details
                         </legend>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-amount" className={labelCls(false)}>Amount</label>
                                 <input id="tx-amount" type="number" min={0} step="any"
@@ -220,7 +220,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-country" className={labelCls(false)}>Country</label>
                                 <input id="tx-country" type="text"
@@ -244,7 +244,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                             2. Merchant Information
                         </legend>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-merchant" className={labelCls(false)}>Merchant Name</label>
                                 <input id="tx-merchant" type="text" value={tx.merchantName ?? ""}
@@ -263,7 +263,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                                 </select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-mcc" className={labelCls(tx.mccCode && !COMMON_MCC_CODES[tx.mccCode] ? true : false)}>
                                     MCC Code {tx.mccCode && COMMON_MCC_CODES[tx.mccCode] && <span className="text-emerald-400 ml-1">({COMMON_MCC_CODES[tx.mccCode]})</span>}
@@ -315,7 +315,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
 
                         {/* Progressive Card Context */}
                         {tx.paymentMethod === "CARD" && (
-                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelCls(false)}>Transaction Mode</label>
                                     <select value={tx.cardDetails?.transactionMode ?? ""} onChange={e => update({ cardDetails: { ...tx.cardDetails, transactionMode: e.target.value || undefined } as any })} className={inputCls}>
@@ -365,7 +365,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
 
                         {/* Progressive UPI Context */}
                         {tx.paymentMethod === "UPI" && (
-                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelCls(false)}>UPI App</label>
                                     <select value={tx.upiDetails?.upiApp ?? ""} onChange={e => update({ upiDetails: { ...tx.upiDetails, upiApp: e.target.value || undefined } as any })} className={inputCls}>
@@ -410,7 +410,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
 
                         {/* Progressive Wallet */}
                         {tx.paymentMethod === "WALLET" && (
-                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-[#12121a] border border-[#2a2a38] rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelCls(false)}>Wallet Provider</label>
                                     <select value={tx.walletDetails?.walletProvider ?? ""} onChange={e => update({ walletDetails: { ...tx.walletDetails, walletProvider: e.target.value || undefined } as any })} className={inputCls}>
@@ -456,7 +456,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                             </label>
 
                             {tx.offer?.offerPresent && (
-                                <div className="grid grid-cols-2 gap-3 mt-1 pt-3 border-t border-[#2a2a38]">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1 pt-3 border-t border-[#2a2a38]">
                                     <div>
                                         <label className={labelCls(false)}>Offer Type</label>
                                         <select value={tx.offer?.offerType ?? ""} onChange={e => update({ offer: { ...tx.offer, offerType: e.target.value || undefined } as any })} className={inputCls}>
@@ -485,7 +485,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                         </legend>
 
                         {/* Device Type + New Device */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-device" className={labelCls(false)}>Device Type</label>
                                 <select
@@ -527,7 +527,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                         </div>
 
                         {/* Failed Attempts + Prev Transactions */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-failed" className={labelCls(false)}>Failed Attempts</label>
                                 <input
@@ -563,7 +563,7 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                         </div>
 
                         {/* IP Country + User Country */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label htmlFor="tx-ip-country" className={labelCls(false)}>IP Country</label>
                                 <input

@@ -2,53 +2,58 @@
 
 @import "tailwindcss";
 
-/* Shared terracotta-and-stone palette: restrained, warm, and product-led. */
+/* Razorpay-hackathon palette: confident navy, electric blue, and clear finance-grade states. */
 @theme {
-  --color-slate-100: #f4efe7;
-  --color-slate-200: #ded7cd;
-  --color-slate-300: #c5bdb1;
-  --color-slate-400: #9f9688;
-  --color-slate-500: #766e62;
-  --color-slate-600: #595249;
-  --color-slate-700: #403b35;
-  --color-slate-800: #2d2925;
-  --color-slate-900: #201e1b;
+  --color-slate-100: #eef5ff;
+  --color-slate-200: #d4dfef;
+  --color-slate-300: #b8c6db;
+  --color-slate-400: #8fa1bc;
+  --color-slate-500: #6c7d97;
+  --color-slate-600: #53627a;
+  --color-slate-700: #3d4a61;
+  --color-slate-800: #29354a;
+  --color-slate-900: #1a2537;
 
-  --color-amber-300: #e7b783;
-  --color-amber-400: #d68b5b;
-  --color-amber-500: #b9633d;
-  --color-amber-600: #965034;
-  --color-amber-900: #47271f;
+  /* Existing amber utility classes are the product's primary-action tokens. */
+  --color-amber-300: #9bc8ff;
+  --color-amber-400: #5fa8ff;
+  --color-amber-500: #2f80ed;
+  --color-amber-600: #2166c3;
+  --color-amber-900: #142f5e;
 
-  --color-emerald-300: #9ec8ae;
-  --color-emerald-400: #77aa8d;
-  --color-emerald-500: #578b72;
-  --color-emerald-800: #25483d;
-  --color-emerald-900: #1b382f;
+  --color-emerald-300: #91e5bf;
+  --color-emerald-400: #49c789;
+  --color-emerald-500: #22a66d;
+  --color-emerald-800: #16563f;
+  --color-emerald-900: #123e31;
 
-  --color-indigo-300: #a8b2ca;
-  --color-indigo-400: #8594b3;
-  --color-indigo-500: #697a9d;
-  --color-indigo-900: #30394d;
-  --color-blue-400: #7fa2ae;
-  --color-purple-400: #ae8b9a;
-  --color-orange-400: #d67a4e;
-  --color-orange-500: #b85f3b;
-  --color-yellow-400: #cba350;
-  --color-yellow-500: #aa8139;
-  --color-red-300: #df9b91;
-  --color-red-400: #c97368;
-  --color-red-500: #aa554d;
-  --color-red-600: #8b443e;
-  --color-red-800: #592d2a;
-  --color-red-900: #442521;
-  --color-red-950: #2d1917;
+  --color-indigo-300: #acbfff;
+  --color-indigo-400: #829cff;
+  --color-indigo-500: #5974db;
+  --color-indigo-900: #27386f;
+  --color-blue-400: #63b3ed;
+  --color-purple-400: #af9bf5;
+  --color-orange-400: #f4a261;
+  --color-orange-500: #df7b39;
+  --color-yellow-400: #f4cd68;
+  --color-yellow-500: #d5a93f;
+  --color-red-300: #ffaaa6;
+  --color-red-400: #f87171;
+  --color-red-500: #df5555;
+  --color-red-600: #bd3f45;
+  --color-red-800: #6f2d38;
+  --color-red-900: #512630;
+  --color-red-950: #32161e;
 }
 
 @layer base {
+  html {
+    background: #070b17;
+  }
+
   body {
-    background: #15130f;
-    color: #f4efe7;
+    background: #070b17;
+    color: #eef5ff;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
@@ -57,8 +62,8 @@
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #403b35; border-radius: 2px; }
-  ::-webkit-scrollbar-thumb:hover { background: #595249; }
+  ::-webkit-scrollbar-thumb { background: #29354a; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4a61; }
 }
 
 @keyframes fadeToken {

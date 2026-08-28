@@ -45,7 +45,7 @@ function toChartRows(sessions: SessionRecord[]): ChartRow[] {
 // Chart sub-components
 // ---------------------------------------------------------------------------
 
-const PIE_COLORS = ["#f59e0b", "#22d3ee", "#34d399", "#a78bfa", "#f87171"];
+const PIE_COLORS = ["#2f80ed", "#38bdf8", "#22a66d", "#829cff", "#df5555"];
 
 const tooltipStyle = {
   contentStyle: { background: "#12121a", border: "1px solid #2a2a38", borderRadius: 10, fontSize: 12 },
@@ -63,7 +63,7 @@ const BarView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
       <YAxis {...axisProps} />
       <Tooltip {...tooltipStyle} />
       <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
-      <Bar dataKey="tokens" fill="#f59e0b" name="Tokens" radius={[4, 4, 0, 0]} />
+      <Bar dataKey="tokens" fill="#2f80ed" name="Tokens" radius={[4, 4, 0, 0]} />
       <Bar dataKey="tps" fill="#22d3ee" name="tok/s" radius={[4, 4, 0, 0]} />
       <Bar dataKey="sim" fill="#34d399" name="Sim %" radius={[4, 4, 0, 0]} />
     </BarChart>
@@ -78,7 +78,7 @@ const LineView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
       <YAxis {...axisProps} />
       <Tooltip {...tooltipStyle} />
       <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
-      <Line type="monotone" dataKey="tokens" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} name="Tokens" />
+      <Line type="monotone" dataKey="tokens" stroke="#2f80ed" strokeWidth={2} dot={{ r: 3 }} name="Tokens" />
       <Line type="monotone" dataKey="tps" stroke="#22d3ee" strokeWidth={2} dot={{ r: 3 }} name="tok/s" />
       <Line type="monotone" dataKey="sim" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="Sim %" />
     </LineChart>

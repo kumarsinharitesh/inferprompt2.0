@@ -68,7 +68,7 @@ const InferencePlayground: React.FC = () => {
   );
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 sm:gap-6">
       <aside className="flex flex-col gap-4">
         <div className="rounded-xl border border-[#1e1e2c] bg-[#12121a] p-4">
           <ProviderSelector value={provider} onChange={p => { local.setProvider(p); setProvider(p); }} />
@@ -110,7 +110,7 @@ const InferencePlayground: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex flex-col gap-4">
+      <main className="flex min-w-0 flex-col gap-4">
         <div role="tablist" aria-label="Input mode" className="flex gap-1 p-1 bg-[#12121a] border border-[#1e1e2c] rounded-xl w-fit">
           {(["text", "audio"] as Mode[]).map(m => (
             <button

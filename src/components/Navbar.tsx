@@ -16,7 +16,7 @@ interface Props {
 
 const Logo: React.FC = () => (
   <NavLink to="/" className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-lg">
-    <div className="flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)] relative">
+    <div className="flex items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 shadow-[0_0_15px_rgba(47,128,237,0.18)] relative">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-500 z-10 drop-shadow-md">
         <polyline points="4,4 12,12 4,20" strokeLinejoin="round" strokeLinecap="round" />
         <circle cx="11" cy="6" r="1.5" fill="currentColor" stroke="none" />
@@ -24,7 +24,7 @@ const Logo: React.FC = () => (
         <circle cx="11" cy="18" r="1.5" fill="currentColor" stroke="none" />
         <circle cx="14" cy="14" r="1.5" fill="currentColor" stroke="none" />
         <path d="M11 6L16 9L14 14L11 18M11 6L14 14" strokeWidth="1.5" strokeOpacity="0.8" />
-        <path d="M13 14L20 8H16L17 3L10 11H14L13 14Z" fill="currentColor" stroke="none" className="drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+        <path d="M13 14L20 8H16L17 3L10 11H14L13 14Z" fill="currentColor" stroke="none" className="drop-shadow-[0_0_8px_rgba(47,128,237,0.8)]" />
       </svg>
     </div>
     <span className="text-sm font-semibold text-slate-100 tracking-tight">Inferprompt</span>
@@ -46,7 +46,7 @@ const Navbar: React.FC<Props> = ({ onKeys }) => {
   const closeMenu = () => setMenuOpen(false);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0b0b0f]/95 backdrop-blur-md border-b border-[#1e1e2c]">
+    <header className="sticky top-0 z-40 bg-[#070b17]/95 backdrop-blur-md border-b border-[#1e1e2c]">
       {/* ── Desktop / Tablet bar ── */}
       <div className="mx-auto w-full max-w-[1700px] px-4 sm:px-6 lg:px-8 xl:px-12 h-14 flex items-center justify-between">
         <Logo />
@@ -127,7 +127,7 @@ const Navbar: React.FC<Props> = ({ onKeys }) => {
 
       {/* ── Mobile dropdown menu ── */}
       {menuOpen && (
-        <div className="md:hidden border-t border-[#1e1e2c] bg-[#0b0b0f] px-4 pb-4 pt-2 space-y-1">
+        <div className="md:hidden border-t border-[#1e1e2c] bg-[#070b17] px-4 pb-4 pt-2 space-y-1">
           {routes.map(r => (
             <NavLink key={r.to} to={r.to} end={r.to === "/"} className={mobileNavLinkClass} onClick={closeMenu}>
               {r.label}

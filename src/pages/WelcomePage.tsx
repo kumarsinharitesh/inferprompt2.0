@@ -95,7 +95,7 @@ const WelcomePage: React.FC = () => {
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
-            backgroundImage: `radial-gradient(circle at 50% 0%, rgba(245,158,11,0.07) 0%, transparent 60%),
+            backgroundImage: `radial-gradient(circle at 50% 0%, rgba(47,128,237,0.09) 0%, transparent 60%),
                               linear-gradient(#1e1e2c 1px, transparent 1px),
                               linear-gradient(90deg, #1e1e2c 1px, transparent 1px)`,
             backgroundSize: "100% 100%, 40px 40px, 40px 40px",

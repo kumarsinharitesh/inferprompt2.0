@@ -24,7 +24,7 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-[#0b0b0f] text-slate-100 antialiased">
+        <div className="min-h-screen bg-[#070b17] text-slate-100 antialiased overflow-x-hidden">
           <Navbar onKeys={() => setKeysOpen(true)} />
 
           <main id="main-content">
@@ -38,7 +38,7 @@ const App: React.FC = () => {
                 <Route
                   path="/playground"
                   element={
-                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5 sm:py-8">
                       <PlaygroundPage />
                     </div>
                   }
@@ -46,7 +46,7 @@ const App: React.FC = () => {
                 <Route
                   path="/diff"
                   element={
-                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5 sm:py-8">
                       <DiffPage />
                     </div>
                   }
@@ -54,7 +54,7 @@ const App: React.FC = () => {
                 <Route
                   path="/analytics"
                   element={
-                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5 sm:py-8">
                       <AnalyticsPage />
                     </div>
                   }
@@ -62,7 +62,7 @@ const App: React.FC = () => {
                 <Route
                   path="/risk"
                   element={
-                    <div className="mx-auto w-full max-w-[1700px] px-4 sm:px-6 lg:px-8 xl:px-12 py-8">
+                    <div className="mx-auto w-full max-w-[1700px] px-4 sm:px-6 lg:px-8 xl:px-12 py-5 sm:py-8">
                       <RiskAnalyzerPage />
                     </div>
                   }
@@ -70,7 +70,7 @@ const App: React.FC = () => {
                 <Route
                   path="/billing"
                   element={
-                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5 sm:py-8">
                       <BillingPage />
                     </div>
                   }

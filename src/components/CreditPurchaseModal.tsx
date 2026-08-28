@@ -89,7 +89,7 @@ const CreditPurchaseModal: React.FC<Props> = ({ onClose, onSuccess }) => {
                     email: "test@example.com",
                 },
                 theme: {
-                    color: "#f59e0b" // Amber brand
+                    color: "#2f80ed" // Primary brand
                 },
                 modal: {
                     ondismiss: function () {
