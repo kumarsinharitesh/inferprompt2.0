@@ -116,8 +116,29 @@ const RegisterPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#080810] flex items-center justify-center px-4">
-            <div className="w-full max-w-md flex flex-col gap-8">
+        <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden flex items-center justify-center px-4 py-8 sm:py-12">
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_28%,rgba(47,128,237,0.17),transparent_27%),radial-gradient(circle_at_15%_75%,rgba(89,116,219,0.12),transparent_24%)]" />
+            <div className="relative grid w-full max-w-5xl items-center gap-8 lg:grid-cols-[1fr_430px] lg:gap-16">
+                <section className="hidden lg:flex flex-col gap-6 max-w-lg">
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Start with five free credits
+                    </div>
+                    <div>
+                        <p className="text-4xl font-bold leading-tight text-white">A clearer way to work with AI decisions.</p>
+                        <p className="mt-4 max-w-md text-base leading-relaxed text-slate-400">Create your workspace to explore model outputs, compare reasoning, and assess payment risk with confidence.</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#22324c] bg-[#0d1526]/80 p-5">
+                        <p className="text-sm font-semibold text-slate-200">Your account includes</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-400">
+                            <p><span className="text-emerald-400">✓</span> Playground access</p>
+                            <p><span className="text-emerald-400">✓</span> Risk analysis</p>
+                            <p><span className="text-emerald-400">✓</span> Model comparison</p>
+                            <p><span className="text-emerald-400">✓</span> Secure key controls</p>
+                        </div>
+                    </div>
+                </section>
+
+                <div className="w-full max-w-md justify-self-center lg:justify-self-end flex flex-col gap-6">
 
                 {/* Logo */}
                 <div className="text-center">
@@ -127,7 +148,7 @@ const RegisterPage: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="bg-[#0e0e18] border border-[#1e1e2c] rounded-2xl p-8 flex flex-col gap-6 shadow-2xl">
+                <div className="bg-[#0e1422]/95 border border-[#273755] rounded-2xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl shadow-black/25">
 
                     {/* Step indicator */}
                     <div className="flex items-center gap-3">
@@ -265,6 +286,7 @@ const RegisterPage: React.FC = () => {
                     Already have an account?{" "}
                     <Link to="/login" className="text-amber-400 hover:text-amber-300 font-semibold transition-colors">Sign in</Link>
                 </p>
+                </div>
             </div>
         </div>
     );

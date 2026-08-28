@@ -104,15 +104,38 @@ const LoginPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen pt-24 px-4 flex items-center justify-center">
-            <div className="w-full max-w-md bg-[#0e0e16] border border-[#1e1e2c] p-8 rounded-2xl flex flex-col gap-6">
+        <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden px-4 py-8 sm:py-12 flex items-center justify-center">
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_38%,rgba(47,128,237,0.16),transparent_26%),radial-gradient(circle_at_82%_70%,rgba(89,116,219,0.13),transparent_24%)]" />
+            <div className="relative grid w-full max-w-5xl items-center gap-8 lg:grid-cols-[1fr_430px] lg:gap-16">
+                <section className="hidden lg:flex flex-col gap-6 max-w-lg">
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Secure AI risk workspace
+                    </div>
+                    <div>
+                        <p className="text-4xl font-bold leading-tight text-white">Make every model decision easier to understand.</p>
+                        <p className="mt-4 max-w-md text-base leading-relaxed text-slate-400">Run prompts, compare model reasoning, and review payment-risk signals in one focused workspace.</p>
+                    </div>
+                    <div className="grid grid-cols-3 overflow-hidden rounded-2xl border border-[#22324c] bg-[#0d1526]/80">
+                        {[['Live', 'streaming'], ['Multi', 'model view'], ['Clear', 'risk signals']].map(([value, label]) => (
+                            <div key={value} className="border-r border-[#22324c] last:border-0 px-4 py-4 text-center">
+                                <p className="text-sm font-bold text-amber-300">{value}</p>
+                                <p className="mt-1 text-[11px] text-slate-500">{label}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <div className="w-full max-w-md justify-self-center lg:justify-self-end bg-[#0e1422]/95 border border-[#273755] p-6 sm:p-8 rounded-2xl flex flex-col gap-6 shadow-2xl shadow-black/25">
 
                 {/* ---------------- LOGIN VIEW ---------------- */}
                 {view === "login" && (
                     <>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-300">
+                                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12h16M12 4l8 8-8 8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            </div>
                             <h2 className="text-2xl font-bold text-slate-100">Welcome Back</h2>
-                            <p className="text-sm text-slate-400 mt-2">Sign into InferPrompt to continue</p>
+                            <p className="text-sm text-slate-400 mt-2">Sign in to your InferPrompt workspace</p>
                         </div>
                         <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
                             <div>
@@ -197,6 +220,7 @@ const LoginPage: React.FC = () => {
                         </div>
                     </>
                 )}
+                </div>
             </div>
         </div>
     );

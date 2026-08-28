@@ -89,7 +89,7 @@ const WelcomePage: React.FC = () => {
   return (
     <div className="flex flex-col">
       {/* Hero */}
-      <section className="relative flex flex-col items-center text-center pt-24 pb-20 px-4 overflow-hidden">
+      <section className="relative flex flex-col items-center text-center pt-16 sm:pt-20 pb-14 px-4 overflow-hidden">
         {/* background grid */}
         <div
           aria-hidden
@@ -134,14 +134,14 @@ const WelcomePage: React.FC = () => {
       </section>
 
       {/* Stats bar */}
-      <div className="mx-auto w-half max-w-2xl border border-[#1e1e2c] rounded-2xl bg-[#12121a] flex overflow-hidden mb-16">
+      <div className="mx-auto w-full max-w-2xl border border-[#1e1e2c] rounded-2xl bg-[#12121a] flex overflow-hidden mb-12">
         <StatPill value="5" label="Free Credits" />
         <StatPill value="2" label="Built-in LLMs" />
         <StatPill value="ABTD" label="Diff Algo" />
       </div>
 
       {/* Live token demo  */}
-      <section className="mx-auto w-full max-w-3xl mb-20 px-4">
+      <section className="mx-auto w-full max-w-3xl mb-14 px-4">
         <div className="rounded-2xl border border-[#1e1e2c] bg-[#0e0e16] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e1e2c] bg-[#12121a]">
             <div className="flex items-center gap-2">
@@ -187,7 +187,7 @@ const WelcomePage: React.FC = () => {
       </section>
 
       {/* Features */}
-      <section className="mx-auto w-full max-w-5xl px-4 mb-20">
+      <section className="mx-auto w-full max-w-5xl px-4 mb-14">
         <h2 className="text-2xl font-bold text-slate-100 mb-2 text-center">Everything you need</h2>
         <p className="text-slate-500 text-sm text-center mb-10">Built for engineers who want to inspect, compare, and understand LLM behaviour.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -208,7 +208,7 @@ const WelcomePage: React.FC = () => {
       </section>
 
       {/* Providers */}
-      <section className="mx-auto w-full max-w-3xl px-4 mb-20 text-center">
+      <section className="mx-auto w-full max-w-3xl px-4 mb-14 text-center">
         <p className="text-[11px] uppercase tracking-wider text-slate-600 mb-5">Supported providers</p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           {providers.map(p => (
@@ -226,7 +226,7 @@ const WelcomePage: React.FC = () => {
       </section>
 
       {/* How Credits Work */}
-      <section className="mx-auto w-full max-w-4xl px-4 mb-20">
+      <section className="mx-auto w-full max-w-4xl px-4 mb-14">
         <h2 className="text-2xl font-bold text-slate-100 mb-2 text-center">Simple, transparent pricing</h2>
         <p className="text-slate-500 text-sm text-center mb-10">Start free. Pay only for what you use.</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -293,8 +293,8 @@ const WelcomePage: React.FC = () => {
       </section>
 
       {/* CTA */}
-      <section className="mx-auto w-full max-w-2xl px-4 mb-28 text-center">
-        <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-b from-amber-500/5 to-transparent p-10 flex flex-col items-center gap-5">
+      <section className="mx-auto w-full max-w-2xl px-4 mb-12 text-center">
+        <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-b from-amber-500/5 to-transparent p-7 sm:p-8 flex flex-col items-center gap-4">
           <h2 className="text-2xl font-bold text-slate-100">Ready to try it?</h2>
           <p className="text-slate-500 text-sm max-w-sm">
             Sign up in seconds and get 5 free credits. Sarvam AI and OpenRouter are included by default — add your own API key for unlimited access.
@@ -325,7 +325,7 @@ const WelcomePage: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-[#1e1e2c] py-6 px-4 text-center">
         <p className="text-xs text-slate-700">
-          Inferprompt@2026 All Right Reserved-Sarvam Assessment
+          © 2026 InferPrompt. All rights reserved.
         </p>
       </footer>
     </div>

@@ -1,66 +1,89 @@
 # InferPrompt
 
-InferPrompt evaluates complex payment transaction structures utilizing an overarching **Deterministic Rule-Based Risk Baseline** seamlessly integrating and comparing reasoning derivations concurrently across multiple LLM integrations executing Risk Analysis operations intuitively dynamically.
+InferPrompt is a full-stack workspace for testing LLM responses and reviewing payment-risk decisions. It combines a streaming playground, multi-model risk analysis, model comparison, usage analytics, credits, and Razorpay test-mode billing.
 
-## 1. What is InferPrompt?
-InferPrompt is a highly parallelized Risk Analytics frontend and backend proxy evaluating incoming transaction profiles accurately against rule-based heuristic bounds natively scaling concurrent transactions through multiple AI models (Sarvam, OpenRouter, Gemini, Groq). By isolating individual AI LLM risk scoring engines accurately, and parsing those arrays explicitly into a unified `Consensus Engine`, it identifies statistical drifts predicting accurately whether different platforms disagree on specific transaction constraints utilizing ABTD reasoning mapping!
+The deterministic risk engine provides a transparent baseline. Selected LLMs contribute independent opinions, and the consensus view makes agreement, disagreement, and evidence easy to inspect.
 
-## 2. Core Problem
-Modern Risk platforms depend almost exclusively on deterministic static bounds or black-box enterprise risk engines which are notoriously opaque. When a $50,000 transaction from an anomalous location blocks automatically, understanding "Why?" or seeking an unbiased 2nd/3rd opinion across LLMs proves critically useful for Analyst manual-review nodes.
+## What you can do
 
-## 3. Key Features
-- **Multi-LLM Risk Analysis**: Concurrently proxy transactions against up to 5 LLMs visually analyzing derivations.
-- **Deterministic Risk Baseline**: InferPrompt's static rule-based mathematical proxy bounding structural anomalies statically!
-- **Consensus Engine**: Determines numerical overlap arrays outlining agreement vectors clearly natively separating platform results completely.
-- **ABTD Reasoning Comparison**: Iterates through LLM derivations natively producing line-by-line semantic diffs mapping specifically where AI models agreed vs deviated explicitly producing visual reasoning matrices completely clearly identifying contextual logic overlaps!
-- **Payment Risk Analytics**: Caches historical arrays bounding multi-level transactions completely storing aggregated metrics seamlessly. 
-- **Razorpay Test Mode**: Integrated dynamically testing full checkout gateways natively tracking localized mock accounting safely!
+- Run text prompts and view streamed provider responses in the Playground.
+- Analyse a payment transaction with Sarvam AI, OpenRouter, Gemini, or Groq.
+- Compare model risk scores, recommendations, factors, and reasoning.
+- Review deterministic flags, model consensus, and historical analytics.
+- Manage API keys, usage credits, and Razorpay test-mode purchases.
 
-## 4. Architecture
-The codebase strictly decouples backend operations securely operating native NodeJS Express routines bypassing React limitations effortlessly:
+## Project structure
+
 ```
-src/
-  components/       # UI Overlays (Risk Analyzer, ABTD limits)
-  pages/            # Main Routing Structures
-  services/         # External Fetch hooks and Risk Parsing Engine
-  utils/            # Local Storage and Helper utilities 
-  config/           # Centralized mappings
-  types/            # Shared Typescript schema
-
-server/             
-  routes/payments.ts # Express endpoints operating Mock Razorpay boundaries 
+src/       React + Vite frontend
+server/    Express API, authentication, payments, and risk orchestration
+public/    Static frontend files
+tests/     Automated tests
 ```
 
-## 5. Multi-LLM Risk Assessment & ABTD
-Our asynchronous `.streamResponse` structure orchestrates multiple AI queries parsing strict structural schemas natively outputting structured JSON conditionally determining distinct metrics mapping Risk level, Confidence bounds, Risk Factors, and Textual Reasoning dynamically against ABTD diff boundaries seamlessly. 
+The Express server also uses shared types and provider code from `src/`, so deploy the complete repository for the backend rather than the `server/` folder alone.
 
-## 6. Credit System & Analytics 
-Execution limits are heavily controlled mitigating spam recursively caching `Free Tier` credits conditionally triggering functional Mock checkout bindings mapping Razorpay architectures locally mapping success/failed boundaries resiliently completely isolating environment secrets natively avoiding frontend bundles tracking dynamically properly. 
+## Run locally
 
-## 7. Local Development Setup
-**Prerequisites**:
-`Node v18+` natively.
+### Prerequisites
 
-**Installation**:
+- Node.js 18 or newer
+- A MongoDB database
+- API keys only for the LLM providers you want the platform to supply
+
+### Setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Copy the environment template and fill in the values you need:
+
+   ```bash
+   copy .env.example .env
+   ```
+
+   On macOS or Linux, use `cp .env.example .env`.
+
+3. Start the frontend and backend together:
+
+   ```bash
+   npm run dev
+   ```
+
+   The frontend runs at `http://localhost:5173` and the API runs at `http://localhost:3001`. Vite proxies `/api` requests to the API during development.
+
+## Useful commands
+
 ```bash
-npm install
+npm run dev          # frontend and backend together
+npm run dev:frontend # Vite frontend only
+npm run dev:backend  # Express API only
+npm run build        # production frontend build and TypeScript check
+npm test             # automated test suite
 ```
 
-**Starting Concurrently (Frontend + Express Backend)**:
-```bash
-npm run dev 
-```
+## Environment variables
 
-## 8. Environment Variables
-You must establish an `.env` matching the schema provided natively within `.env.example`:
-```
-VITE_API_BASE_URL=http://localhost:3001
-RAZORPAY_KEY_ID=<mock-publishable>
-RAZORPAY_KEY_SECRET=<mock-secret>
-```
-*   The system executes strictly in Razorpay TEST mode. 
+Use `.env.example` as the reference. Never commit `.env`; it is already ignored by Git.
 
-## 9. Important Limitations
-*   **The deterministic risk engine is a transparent prototype heuristic, not a production-grade fraud detection model.**
-*   Razorpay integration currently uses TEST MODE explicitly. 
-*   LocalStorage is utilized exclusively for demo local persistence correctly. Production deployments demand authenticated Postgres persistence endpoints scaling accurately securely correctly. 
+Required for the full application:
+
+- `MONGO_URI` – MongoDB connection string.
+- `JWT_SECRET` – long random value used to sign sessions.
+- `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` – Razorpay **test-mode** credentials for credit purchases.
+- `EMAIL_USER` and `EMAIL_PASS` – SMTP credentials for email verification and password resets.
+
+LLM keys are optional platform keys. When set on the backend, users can use that provider without entering their own key. Users can still add a personal key in the Keys panel.
+
+## Deployment
+
+- **Vercel:** deploy the frontend build from the repository root.
+- **Fly.io or another Node host:** deploy the complete repository and run the Express service from `server/index.ts` through `npm run dev:backend` locally or the equivalent production start command.
+- Configure the same server-side environment variables in the backend host. Do not expose secret keys through `VITE_` variables in production.
+
+## Important note
+
+InferPrompt is a hackathon/demo application. Its deterministic engine and model outputs are decision-support tools, not a substitute for production fraud controls, compliance review, or financial advice.
