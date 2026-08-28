@@ -11,10 +11,11 @@ const unavailable: ProviderAvailability = {
 };
 
 /** Reads only boolean availability flags; API-key values never leave the server. */
-export function useProviderAvailability(): ProviderAvailability {
+export function useProviderAvailability(enabled = true): ProviderAvailability {
   const [availability, setAvailability] = useState<ProviderAvailability>(unavailable);
 
   useEffect(() => {
+    if (!enabled) return;
     let active = true;
     fetch("/api/inference/providers", { credentials: "include" })
       .then(async response => response.ok ? response.json() : null)
@@ -25,7 +26,7 @@ export function useProviderAvailability(): ProviderAvailability {
       })
       .catch(() => { /* Keep the UI usable if the availability check is offline. */ });
     return () => { active = false; };
-  }, []);
+  }, [enabled]);
 
   return availability;
 }

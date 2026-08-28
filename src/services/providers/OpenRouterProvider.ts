@@ -3,7 +3,20 @@ import { local } from "../../utils/storage";
 import { makeSseStream } from "../../utils/sseParser";
 
 interface OpenRouterDelta {
-  choices: Array<{ delta: { content?: string; reasoning_content?: string } }>;
+  choices: Array<{
+    delta?: { content?: string; reasoning_content?: string };
+    message?: { content?: string; reasoning?: string; reasoning_content?: string };
+  }>;
+}
+
+function streamFromText(text: string): ReadableStream<Uint8Array> {
+  const encoded = new TextEncoder().encode(text);
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (encoded.length) controller.enqueue(encoded);
+      controller.close();
+    },
+  });
 }
 
 function getOpenRouterKey(): string {
@@ -49,14 +62,33 @@ export class OpenRouterProvider implements InferenceProvider {
           ...(req.systemPrompt ? [{ role: "system", content: req.systemPrompt }] : []),
           { role: "user", content: req.text ?? "" },
         ],
-        stream: true,
-        max_tokens: isRiskAnalysis ? 900 : 4096,
+        // Risk Analyzer needs one complete JSON object, not incremental UI
+        // tokens. Some OpenRouter free models split or omit final SSE frames,
+        // which produced an empty/truncated object for the risk parser.
+        stream: !isRiskAnalysis,
+        max_tokens: isRiskAnalysis ? 1600 : 4096,
         ...(isRiskAnalysis ? { temperature: 0 } : {}),
         ...(isRiskAnalysis ? { response_format: { type: "json_object" } } : {}),
       }),
       signal: req.signal,
     });
     if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+    if (isRiskAnalysis) {
+      const raw = await res.text();
+      let completion: OpenRouterDelta;
+      try {
+        completion = JSON.parse(raw) as OpenRouterDelta;
+      } catch {
+        throw new Error("OpenRouter returned an invalid risk completion");
+      }
+      const message = completion.choices?.[0]?.message;
+      const content = message?.content ?? message?.reasoning_content ?? message?.reasoning;
+      if (!content || typeof content !== "string") {
+        throw new Error("OpenRouter returned an empty risk completion");
+      }
+      return streamFromText(content);
+    }
+
     if (!res.body) throw new Error("OpenRouter returned empty body");
 
     return makeSseStream(res.body, (parsed) => {

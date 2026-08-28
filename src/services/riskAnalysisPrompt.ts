@@ -40,6 +40,7 @@ RISK SCORING:
 Use the supplied transaction evidence to estimate model risk.
 Risk score is an analytical model opinion, not platform truth.
 Return JSON only.
+Keep \`reasoning\` to at most two concise sentences and return no more than four risk factors.
 
 Required schema:
 {

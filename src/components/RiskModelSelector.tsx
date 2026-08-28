@@ -10,7 +10,10 @@ interface Props {
 }
 
 const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
-    const platformAvailability = useProviderAvailability();
+    // Risk execution already resolves platform keys server-side. Do not make a
+    // separate status call here: older Fly deployments may not expose that
+    // optional endpoint, which previously filled the browser console with 404s.
+    const platformAvailability = useProviderAvailability(false);
     const toggle = (id: Provider) => {
         onChange(
             selected.includes(id)
