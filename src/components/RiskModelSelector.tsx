@@ -2,6 +2,7 @@ import React from "react";
 import type { Provider } from "../types";
 import { PROVIDER_META } from "../services/providerFactory";
 import { local } from "../utils/storage";
+import { useProviderAvailability } from "../hooks/useProviderAvailability";
 
 interface Props {
     selected: Provider[];
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
+    const platformAvailability = useProviderAvailability();
     const toggle = (id: Provider) => {
         onChange(
             selected.includes(id)
@@ -36,8 +38,8 @@ const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {PROVIDER_META.map((meta) => {
                     const isChecked = selected.includes(meta.id);
-                    const envMap = import.meta.env as Record<string, string | undefined>;
-                    const hasKey = meta.requiresKey ? !!local.getKey(meta.id) || !!envMap[meta.envKey || ""] : false;
+                    const hasPersonalKey = local.getKey(meta.id).length > 0;
+                    const hasPlatformKey = platformAvailability[meta.id];
                     return (
                         <label
                             key={meta.id}
@@ -71,13 +73,13 @@ const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
                                 <p className="text-sm font-medium text-slate-200 leading-tight">{meta.label}</p>
                                 <p className="text-xs text-slate-500 mt-0.5 leading-snug">{meta.description}</p>
                                 {meta.requiresKey && (
-                                    hasKey ? (
+                                    hasPersonalKey || hasPlatformKey ? (
                                         <p className="flex items-center gap-1 text-[10px] text-emerald-500/80 mt-1 font-medium">
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                            API key configured
+                                            {hasPersonalKey ? "Personal API key active" : "Platform key ready"}
                                         </p>
                                     ) : (
-                                        <p className="text-[10px] text-amber-600/70 mt-1">Requires API key (Add via Keys panel)</p>
+                                        <p className="text-[10px] text-amber-600/70 mt-1">Optional: add your own key in Keys</p>
                                     )
                                 )}
                             </div>

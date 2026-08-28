@@ -3,13 +3,15 @@ import { local } from "../utils/storage";
 import { PROVIDER_META } from "../services/providerFactory";
 import { validateApiKey, redactKey } from "../utils/security";
 import toast from "react-hot-toast";
+import { useProviderAvailability } from "../hooks/useProviderAvailability";
+import type { Provider } from "../types";
 
 interface Props {
   onClose: () => void;
 }
 
-const KeyRow: React.FC<{ id: string; label: string; hint: string; envKey: string }> = ({
-  id, label, hint, envKey,
+const KeyRow: React.FC<{ id: Provider; label: string; hint: string; platformKeyReady: boolean }> = ({
+  id, label, hint, platformKeyReady,
 }) => {
   const stored = local.getKey(id) || "";
   const [val, setVal] = useState("");
@@ -17,8 +19,8 @@ const KeyRow: React.FC<{ id: string; label: string; hint: string; envKey: string
   const [saved, setSaved] = useState(false);
   const [validErr, setValidErr] = useState<string | null>(null);
 
-  const hasEnv = Boolean((import.meta.env as Record<string, string | undefined>)[envKey]?.trim());
-  const isActive = stored.length > 0 || hasEnv;
+  const hasPersonalKey = stored.length > 0;
+  const isActive = hasPersonalKey || platformKeyReady;
 
   const save = () => {
     if (val.trim()) {
@@ -49,9 +51,9 @@ const KeyRow: React.FC<{ id: string; label: string; hint: string; envKey: string
           <span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-400" : "bg-[#3a3a4a]"}`} />
           <span className="text-sm font-semibold text-slate-200">{label}</span>
         </div>
-        {hasEnv && (
+        {platformKeyReady && !hasPersonalKey && (
           <span className="text-[10px] bg-[#1a2a1a] text-emerald-400 border border-emerald-900 px-2 py-0.5 rounded-md">
-            env var set
+            platform key ready
           </span>
         )}
       </div>
@@ -62,7 +64,7 @@ const KeyRow: React.FC<{ id: string; label: string; hint: string; envKey: string
             type={show ? "text" : "password"}
             value={val}
             onChange={e => { setVal(e.target.value); setValidErr(null); }}
-            placeholder={stored ? redactKey(stored) : (hasEnv ? "Override env var…" : "Paste API key…")}
+            placeholder={stored ? redactKey(stored) : (platformKeyReady ? "Optional personal override…" : "Paste your API key…")}
             onKeyDown={e => e.key === "Enter" && save()}
             className={`w-full bg-[#0e0e16] border rounded-lg px-3 py-2 text-sm
                        text-slate-200 placeholder-slate-600 font-mono
@@ -107,6 +109,7 @@ const KeyRow: React.FC<{ id: string; label: string; hint: string; envKey: string
 
 const ApiKeySettings: React.FC<Props> = ({ onClose }) => {
   const keyed = PROVIDER_META.filter(p => p.requiresKey);
+  const platformAvailability = useProviderAvailability();
 
   return (
     <div
@@ -121,7 +124,7 @@ const ApiKeySettings: React.FC<Props> = ({ onClose }) => {
           <div>
             <h2 className="text-base font-semibold text-slate-100">API Keys</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Keys stay in browser storage and are sent only with a request to run that provider through the backend.
+              Platform keys are configured securely on the server. Add a personal key only when you want to override one.
             </p>
           </div>
           <button
@@ -139,13 +142,13 @@ const ApiKeySettings: React.FC<Props> = ({ onClose }) => {
               id={p.id}
               label={p.label}
               hint={p.description}
-              envKey={p.envKey ?? ""}
+              platformKeyReady={platformAvailability[p.id]}
             />
           ))}
         </div>
         <div className="px-6 py-4 border-t border-[#1e1e2c]">
           <p className="text-[11px] text-slate-600">
-            Keys in localStorage override .env.local values. Refresh the page after saving to apply changes.
+            Personal keys stay in browser storage and override the platform key only for your requests.
           </p>
         </div>
       </div>

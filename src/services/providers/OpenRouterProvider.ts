@@ -7,16 +7,17 @@ interface OpenRouterDelta {
 }
 
 function getOpenRouterKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.OPENROUTER_API_KEY) {
-    return (process as any).env.OPENROUTER_API_KEY;
+  if (typeof process !== "undefined" && process.env) {
+    // Support the server-safe key name and the project's existing Vite-era
+    // name while deployments migrate their environment configuration.
+    return process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || "";
   }
-  return (import.meta as any).env?.OPENROUTER_API_KEY || "";
+  return (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "";
 }
 
 export class OpenRouterProvider implements InferenceProvider {
   private key: string;
   private model: string;
-  private riskModel: string;
 
   constructor(customKey?: string) {
     const rawKey = customKey || local.getKey("openrouter") || getOpenRouterKey() || "";
@@ -27,11 +28,6 @@ export class OpenRouterProvider implements InferenceProvider {
     this.model = (typeof process !== 'undefined' && (process as any).env)
       ? ((process as any).env.VITE_OPENROUTER_MODEL ?? "openrouter/free")
       : ((import.meta as any).env?.VITE_OPENROUTER_MODEL ?? "openrouter/free");
-    // Risk analysis requires short, structured JSON. A compact free model
-    // avoids the slow, variable routing to large reasoning models.
-    this.riskModel = (typeof process !== 'undefined' && (process as any).env)
-      ? ((process as any).env.VITE_OPENROUTER_RISK_MODEL ?? "google/gemma-2-9b-it:free")
-      : ((import.meta as any).env?.VITE_OPENROUTER_RISK_MODEL ?? "google/gemma-2-9b-it:free");
     if (!this.key) throw new Error("OpenRouter needs an API key — add it via the Keys panel");
   }
 
@@ -45,14 +41,18 @@ export class OpenRouterProvider implements InferenceProvider {
         "HTTP-Referer": "https://developer-inference-portal.vercel.app",
       },
       body: JSON.stringify({
-        model: isRiskAnalysis ? this.riskModel : this.model,
+        // The free router selects an available model that supports the
+        // requested JSON capability. Pinning a single free model made risk
+        // analysis fail whenever that provider was unavailable.
+        model: isRiskAnalysis ? "openrouter/free" : this.model,
         messages: [
           ...(req.systemPrompt ? [{ role: "system", content: req.systemPrompt }] : []),
           { role: "user", content: req.text ?? "" },
         ],
         stream: true,
-        max_tokens: isRiskAnalysis ? 700 : 4096,
+        max_tokens: isRiskAnalysis ? 900 : 4096,
         ...(isRiskAnalysis ? { temperature: 0 } : {}),
+        ...(isRiskAnalysis ? { response_format: { type: "json_object" } } : {}),
       }),
       signal: req.signal,
     });

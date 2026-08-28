@@ -3,10 +3,10 @@ import { local } from "../../utils/storage";
 import { makeSseStream } from "../../utils/sseParser";
 
 function getSarvamKey(): string {
-  if (typeof (process as any) !== "undefined" && (process as any).env && (process as any).env.SARVAM_API_KEY) {
-    return (process as any).env.SARVAM_API_KEY;
+  if (typeof process !== "undefined" && process.env) {
+    return process.env.SARVAM_API_KEY || process.env.VITE_SARVAM_API_KEY || "";
   }
-  return (import.meta as any).env?.SARVAM_API_KEY || "";
+  return (import.meta as any).env?.VITE_SARVAM_API_KEY || "";
 }
 
 export class SarvamProvider implements InferenceProvider {

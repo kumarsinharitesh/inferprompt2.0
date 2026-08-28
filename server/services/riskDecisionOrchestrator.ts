@@ -150,7 +150,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
                 ? setTimeout(() => {
                     timedOut = true;
                     requestController.abort();
-                }, 20_000)
+                }, 45_000)
                 : undefined;
             try {
                 const providerInst = createProvider(providerId, customKeys?.[providerId]);
@@ -202,7 +202,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
                 failedModelIds.push(providerId);
                 sendSse("model_failed", {
                     provider: providerId,
-                    error: timedOut ? "OpenRouter risk analysis timed out after 20 seconds." : (err.message || "Failed")
+                    error: timedOut ? "OpenRouter risk analysis timed out after 45 seconds." : (err.message || "Failed")
                 });
             } finally {
                 if (timeout) clearTimeout(timeout);

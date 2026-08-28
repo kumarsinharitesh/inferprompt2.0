@@ -6,6 +6,20 @@ import type { Provider } from "../../src/types";
 
 const router = express.Router();
 
+const hasConfiguredKey = (...names: string[]) => names.some(name => Boolean(process.env[name]?.trim()));
+
+// Returns availability only. API key values are never sent to the browser.
+router.get("/providers", authMiddleware, (_req: AuthRequest, res) => {
+    res.json({
+        providers: {
+            sarvam: hasConfiguredKey("SARVAM_API_KEY", "VITE_SARVAM_API_KEY"),
+            openrouter: hasConfiguredKey("OPENROUTER_API_KEY", "VITE_OPENROUTER_API_KEY"),
+            gemini: hasConfiguredKey("GEMINI_API_KEY", "VITE_GEMINI_API_KEY"),
+            groq: hasConfiguredKey("GROQ_API_KEY", "VITE_GROQ_API_KEY"),
+        }
+    });
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/inference/stream
 // Runs the provider server-side and pipes tokens as SSE to the client.

@@ -2,6 +2,7 @@ import React from "react";
 import type { Provider } from "../types";
 import { PROVIDER_META } from "../services/providerFactory";
 import { local } from "../utils/storage";
+import { useProviderAvailability } from "../hooks/useProviderAvailability";
 
 interface Props {
   value: Provider;
@@ -9,12 +10,11 @@ interface Props {
 }
 
 const ProviderSelector: React.FC<Props> = ({ value, onChange }) => {
-  const env = import.meta.env as Record<string, string | undefined>;
+  const platformAvailability = useProviderAvailability();
 
-  const keyStatus = (envKey: string, providerId: string) => {
-    const hasStored = local.getKey(providerId).length > 0;
-    const hasEnv = Boolean(env[envKey]?.trim());
-    return hasStored || hasEnv;
+  const keyStatus = (providerId: Provider) => {
+    if (local.getKey(providerId).length > 0) return "personal";
+    return platformAvailability[providerId] ? "platform" : "missing";
   };
 
   const pick = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -42,7 +42,7 @@ const ProviderSelector: React.FC<Props> = ({ value, onChange }) => {
           {PROVIDER_META.map(p => (
             <option key={p.id} value={p.id}>
               {p.label}
-              {p.requiresKey && !keyStatus(p.envKey ?? "", p.id) ? " (no key)" : ""}
+              {p.requiresKey && keyStatus(p.id) === "missing" ? " (add key)" : ""}
             </option>
           ))}
         </select>
@@ -56,10 +56,8 @@ const ProviderSelector: React.FC<Props> = ({ value, onChange }) => {
 
       {current && (
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          {current.requiresKey && (
-            <span className={`w-1.5 h-1.5 rounded-full ${keyStatus(current.envKey ?? "", current.id) ? "bg-emerald-400" : "bg-slate-600"}`} />
-          )}
-          <span>{current.description}</span>
+          {current.requiresKey && <span className={`w-1.5 h-1.5 rounded-full ${keyStatus(current.id) === "missing" ? "bg-slate-600" : "bg-emerald-400"}`} />}
+          <span>{current.description} {current.requiresKey && (keyStatus(current.id) === "platform" ? "• Platform key ready" : keyStatus(current.id) === "personal" ? "• Personal key active" : "• Add a personal key in Keys")}</span>
         </div>
       )}
     </div>
