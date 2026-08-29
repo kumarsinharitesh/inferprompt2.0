@@ -28,8 +28,8 @@ export const PROVIDER_META: ProviderMeta[] = [
   },
   {
     id: "openrouter",
-    label: "OpenRouter Free Router",
-    description: "[Model: openrouter/free] Free, fast automatic routing to available models.",
+    label: "OpenRouter (Auto)",
+    description: "[Model: openrouter/auto] Auto-routes to the best available free model — always works.",
     requiresKey: true,
     envKey: "OPENROUTER_API_KEY",
     docsUrl: "https://openrouter.ai/docs",

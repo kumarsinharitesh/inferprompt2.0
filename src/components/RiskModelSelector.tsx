@@ -9,12 +9,12 @@ interface Props {
     onChange: (models: Provider[]) => void;
 }
 
+const MAX_MODELS = 4;
+
 const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
-    // Risk execution already resolves platform keys server-side. Do not make a
-    // separate status call here: older Fly deployments may not expose that
-    // optional endpoint, which previously filled the browser console with 404s.
     const platformAvailability = useProviderAvailability(false);
     const toggle = (id: Provider) => {
+        if (!selected.includes(id) && selected.length >= MAX_MODELS) return; // cap at 4
         onChange(
             selected.includes(id)
                 ? selected.filter((p) => p !== id)
@@ -23,6 +23,7 @@ const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
     };
 
     const count = selected.length;
+    const atMax = count >= MAX_MODELS;
 
     return (
         <div className="flex flex-col gap-4">
@@ -34,7 +35,7 @@ const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
                         : "bg-[#1e1e2c] text-slate-500"
                         }`}
                 >
-                    {count === 0 ? "None selected" : `${count} model${count !== 1 ? "s" : ""} selected`}
+                    {count === 0 ? "None selected" : `${count} / ${MAX_MODELS} models selected`}
                 </span>
             </div>
 
@@ -47,10 +48,11 @@ const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
                         <label
                             key={meta.id}
                             htmlFor={`model-${meta.id}`}
-                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all
-                ${isChecked
-                                    ? "border-amber-500/40 bg-amber-500/5"
-                                    : "border-[#1e1e2c] bg-[#0e0e16] hover:border-[#2a2a38] hover:bg-[#13131a]"
+                            className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${!isChecked && atMax
+                                    ? "border-[#1e1e2c] bg-[#0e0e16] opacity-40 cursor-not-allowed"
+                                    : isChecked
+                                        ? "border-amber-500/40 bg-amber-500/5 cursor-pointer"
+                                        : "border-[#1e1e2c] bg-[#0e0e16] hover:border-[#2a2a38] hover:bg-[#13131a] cursor-pointer"
                                 }`}
                         >
                             <div className="mt-0.5 shrink-0">

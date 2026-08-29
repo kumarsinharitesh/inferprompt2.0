@@ -1,6 +1,6 @@
 # InferPrompt
 
-InferPrompt is a full-stack workspace for testing LLM responses and reviewing payment-risk decisions. It combines a streaming playground, multi-model risk analysis, model comparison, usage analytics, credits, and Razorpay test-mode billing.
+InferPrompt is a workspace for testing LLM responses and reviewing payment-risk decisions. It combines a streaming playground, multi-model risk analysis, model comparison, usage analytics, credits, and Razorpay test-mode billing.
 
 The deterministic risk engine provides a transparent baseline. Selected LLMs contribute independent opinions, and the consensus view makes agreement, disagreement, and evidence easy to inspect.
 

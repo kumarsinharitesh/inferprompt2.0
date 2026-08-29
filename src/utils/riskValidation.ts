@@ -74,5 +74,9 @@ export function validateRiskRequest(req: {
         errors.push({ field: "selectedModels", message: "Select at least one AI model." });
     }
 
+    if (req.selectedModels.length > 4) {
+        errors.push({ field: "selectedModels", message: "Maximum 4 models can run simultaneously." });
+    }
+
     return errors;
 }

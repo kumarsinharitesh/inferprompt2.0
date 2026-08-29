@@ -150,7 +150,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
                 ? setTimeout(() => {
                     timedOut = true;
                     requestController.abort();
-                }, 45_000)
+                }, 60_000)
                 : undefined;
             try {
                 const providerInst = createProvider(providerId, customKeys?.[providerId]);

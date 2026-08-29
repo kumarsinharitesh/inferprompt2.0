@@ -253,7 +253,18 @@ const AnalyticsDashboard: React.FC = () => {
     } else {
       setIsLoading(false);
     }
-    return () => { active = false; };
+
+    // Re-fetch whenever the user navigates back to this tab
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && isAuthenticated) {
+        fetchAnalytics();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [isAuthenticated, fetchAnalytics]);
 
   const pick = (c: ChartType) => { setChart(c); local.setChart(c); };
@@ -363,7 +374,21 @@ const AnalyticsDashboard: React.FC = () => {
       {/* INFERENCE ANALYTICS */}
       {/* ------------------------------------------------------------- */}
       <div className="flex flex-col gap-6">
-        <h2 className="text-xl font-bold text-slate-200">Inference Analytics</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-200">Inference Analytics</h2>
+          <button
+            onClick={() => fetchAnalytics()}
+            disabled={isLoading}
+            className="flex items-center gap-2 bg-[#1e1e2c] hover:bg-[#2a2a38] text-slate-300 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-slate-700/50 disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isLoading ? "animate-spin" : ""}>
+              <path d="M21 2v6h-6"></path>
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v6h6"></path>
+            </svg>
+            {isLoading ? "Refreshing..." : "Refresh Data"}
+          </button>
+        </div>
 
         {/* Summary stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

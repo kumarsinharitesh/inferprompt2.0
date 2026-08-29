@@ -3,7 +3,7 @@ import type { InferenceRequest, StreamingStatus, SessionRecord } from "../types"
 import { createProvider } from "../services/providerFactory";
 import { computeMetrics } from "../utils/metrics";
 import { local, session } from "../utils/storage";
-
+import { useAuth } from "../context/AuthContext";
 
 export interface StreamingState {
   output: string;
@@ -17,6 +17,8 @@ export interface StreamingState {
     latencyMs: number;
   };
   isThinking: boolean;
+  // Real-time token count as chunks arrive (updates every chunk)
+  liveTokenCount: number;
   start: (request: InferenceRequest) => Promise<void>;
   abort: () => void;
   reset: () => void;
@@ -25,6 +27,8 @@ export interface StreamingState {
 const STREAM_TIMEOUT_MS = 30_000;
 
 export function useStreaming(): StreamingState {
+  const { credits, refreshUser } = useAuth();
+
   const [tokens, setTokens] = useState<string[]>([]);
   const [status, setStatus] = useState<StreamingStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +37,8 @@ export function useStreaming(): StreamingState {
     tokensPerSec: 0,
     latencyMs: 0,
   });
-
+  // Live token count that updates on every chunk (not just at end)
+  const [liveTokenCount, setLiveTokenCount] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,13 +51,11 @@ export function useStreaming(): StreamingState {
     }
   }, []);
 
-
   const abort = useCallback(() => {
     clearStreamTimeout();
     abortControllerRef.current?.abort();
     setStatus("aborted");
   }, [clearStreamTimeout]);
-
 
   const reset = useCallback(() => {
     clearStreamTimeout();
@@ -61,12 +64,11 @@ export function useStreaming(): StreamingState {
     setStatus("idle");
     setError(null);
     setMetrics({ tokenCount: 0, tokensPerSec: 0, latencyMs: 0 });
+    setLiveTokenCount(0);
   }, [clearStreamTimeout]);
-
 
   const start = useCallback(
     async (request: InferenceRequest) => {
-
       clearStreamTimeout();
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -75,6 +77,7 @@ export function useStreaming(): StreamingState {
       setTokens([]);
       setError(null);
       setStatus("streaming");
+      setLiveTokenCount(0);
       const startTime = Date.now();
       startTimeRef.current = startTime;
 
@@ -83,8 +86,6 @@ export function useStreaming(): StreamingState {
       }
 
       try {
-        // Route all provider calls through the backend to avoid CORS and
-        // expose API keys only on the server side.
         const res = await fetch("/api/inference/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -94,8 +95,6 @@ export function useStreaming(): StreamingState {
             provider: request.provider,
             text: request.text ?? "",
             systemPrompt: request.systemPrompt,
-            // Provider calls run through the backend, so include the locally
-            // saved key for this request without persisting it server-side.
             customKey: local.getKey(request.provider) || undefined,
           }),
         });
@@ -131,7 +130,7 @@ export function useStreaming(): StreamingState {
 
           for (const line of lines) {
             const trimmed = line.trim();
-            if (trimmed.startsWith("event: error")) continue; // handled on data line
+            if (trimmed.startsWith("event: error")) continue;
             if (!trimmed.startsWith("data:")) continue;
             const json = trimmed.slice(5).trim();
             if (!json || json === "{}") continue;
@@ -145,8 +144,9 @@ export function useStreaming(): StreamingState {
                 setTokens((prev) => [...prev, parsed.chunk]);
                 const m = computeMetrics(collectedTokens, startTime);
                 setMetrics(m);
+                // Update live token count on every chunk
+                setLiveTokenCount(m.tokenCount);
 
-                // Reset per-token stall timeout
                 timeoutRef.current = setTimeout(() => {
                   controller.abort();
                   setStatus("error");
@@ -166,20 +166,23 @@ export function useStreaming(): StreamingState {
         if (!controller.signal.aborted) {
           setStatus("done");
 
+          // Refresh server-authoritative credit balance so all UI stays in sync
+          await refreshUser();
+
           // Persist session record
           try {
             const finalMetrics = computeMetrics(collectedTokens, startTime);
             fetch(`/api/inference/history`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
               body: JSON.stringify({
                 sessionId: crypto.randomUUID(),
                 provider: request.provider,
                 totalTokens: finalMetrics.tokenCount,
-                latencyMs: finalMetrics.latencyMs
-              })
-            }).catch(e => console.error("History sync error:", e));
+                latencyMs: finalMetrics.latencyMs,
+              }),
+            }).catch((e) => console.error("History sync error:", e));
           } catch {
             // Storage failure must not affect inference result.
           }
@@ -192,29 +195,22 @@ export function useStreaming(): StreamingState {
         setStatus("error");
       }
     },
-    [clearStreamTimeout]
+    [clearStreamTimeout, refreshUser]
   );
 
   const rawOutput = tokens.join("");
 
-  // Strip the entire <think>...</think> block, not just the tags.
-  // During streaming the closing tag may not have arrived yet — in that case
-  // we hide everything from <think> onward until </think> appears.
+  // Strip <think>...</think> blocks (DeepSeek-style reasoning tokens)
   const strippedOutput = (() => {
     let s = rawOutput;
-    // Remove complete think blocks
     s = s.replace(/<think>[\s\S]*?<\/think>/g, "");
-    // If a think block is open but not yet closed (mid-stream), hide it
     const openIdx = s.indexOf("<think>");
     if (openIdx !== -1) s = s.substring(0, openIdx);
     return s.trimStart();
   })();
 
   const displayOutput = strippedOutput;
-
-
   const isThinking = status === "streaming" && strippedOutput.length === 0;
-
 
   useEffect(() => {
     if (status !== "done" || !displayOutput) return;
@@ -223,7 +219,6 @@ export function useStreaming(): StreamingState {
       session.setOutputB(oldA);
     }
     session.setOutputA(displayOutput);
-
   }, [status]);
 
   return {
@@ -233,9 +228,10 @@ export function useStreaming(): StreamingState {
     status,
     error,
     metrics,
+    isThinking,
+    liveTokenCount,
     start,
     abort,
     reset,
-    isThinking
   };
 }

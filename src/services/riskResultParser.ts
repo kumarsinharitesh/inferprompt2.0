@@ -3,20 +3,24 @@ import type { Provider, ModelRiskResult } from "../types";
 function extractJsonText(raw: string): string {
     let cleaned = raw.trim();
 
-    // Strip <think>...</think> if present (e.g., DeepSeek models)
-    const thinkStart = cleaned.indexOf("<think>");
-    const thinkEnd = cleaned.indexOf("</think>");
-    if (thinkStart !== -1 && thinkEnd !== -1) {
-        cleaned = cleaned.substring(0, thinkStart) + cleaned.substring(thinkEnd + 8);
-        cleaned = cleaned.trim();
-    }
+    // Strip <think>...</think> (DeepSeek, Qwen3 via content field)
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "");
 
-    // Try to heavily isolate standard JSON fence blocks if prefixed by CoT text
+    // Strip <|think|>...<|/think|> (Qwen3 alternate delimiter)
+    cleaned = cleaned.replace(/<\|think\|>[\s\S]*?<\|\/think\|>/gi, "");
+
+    // If a think block opened but never closed, cut everything from it onward
+    const thinkOpen = cleaned.search(/<think>|<\|think\|>/i);
+    if (thinkOpen !== -1) cleaned = cleaned.substring(0, thinkOpen);
+
+    cleaned = cleaned.trim();
+
+    // Extract JSON from markdown fences (```json ... ``` or ``` ... ```)
     const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch) {
         cleaned = jsonMatch[1].trim();
     } else {
-        // Fallback: Just try to slice manually between first { and last }
+        // Fallback: slice between outermost { and }
         const firstBrace = cleaned.indexOf("{");
         const lastBrace = cleaned.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -28,6 +32,7 @@ function extractJsonText(raw: string): string {
 
     return cleaned;
 }
+
 
 export function parseModelRiskResult(
     provider: Provider,
