@@ -168,7 +168,7 @@ const RegisterPage: React.FC = () => {
                                     required
                                     value={name}
                                     onChange={e => setName(e.target.value)}
-                                    placeholder="Ritesh Sinha"
+                                    placeholder="Your Name"
                                     className="bg-[#12121a] border border-[#1e1e2c] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
                                 />
                             </div>
@@ -179,7 +179,7 @@ const RegisterPage: React.FC = () => {
                                     required
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    placeholder="you@example.com"
+                                    placeholder="your@example.com"
                                     className="bg-[#12121a] border border-[#1e1e2c] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
                                 />
                             </div>
