@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: inferprompt-backend
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server/index.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false   # Set in Render dashboard — do NOT commit this value
+      - key: JWT_SECRET
+        sync: false   # Set in Render dashboard — do NOT commit this value
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # ─── Email / OTP (Gmail App Password) ───────────────────────────────────
+      # Without these, OTP emails will FAIL with a 503 error.
+      # In Render dashboard: Environment → Add environment variable
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false   # e.g. yourname@gmail.com
+      - key: SMTP_PASS
+        sync: false   # Gmail App Password (16 chars, no spaces needed)
+
+      # ─── Payment ────────────────────────────────────────────────────────────
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+
+      # ─── AI APIs ────────────────────────────────────────────────────────────
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false

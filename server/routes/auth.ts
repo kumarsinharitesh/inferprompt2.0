@@ -53,8 +53,8 @@ router.post("/send-otp", async (req, res) => {
     } catch (err: any) {
         console.error("send-otp error:", err);
         // Surface email config errors clearly
-        if (err.message?.includes("EMAIL_USER") || err.message?.includes("EMAIL_PASS")) {
-            return res.status(503).json({ error: "Email service not configured. Please contact support." });
+        if (err.message?.includes("SMTP_USER") || err.message?.includes("SMTP_PASS") || err.message?.includes("Invalid login") || err.code === "EAUTH" || err.code === "ECONNECTION") {
+            return res.status(503).json({ error: "Email service is not configured on the server. Please contact support." });
         }
         return res.status(500).json({ error: "Failed to send OTP. Please try again." });
     }
@@ -140,6 +140,9 @@ router.post("/forgot-password", async (req, res) => {
 
     } catch (err: any) {
         console.error("forgot-password error:", err);
+        if (err.message?.includes("SMTP_USER") || err.message?.includes("SMTP_PASS") || err.message?.includes("Invalid login") || err.code === "EAUTH" || err.code === "ECONNECTION") {
+            return res.status(503).json({ error: "Email service is not configured on the server. Please contact support." });
+        }
         return res.status(500).json({ error: "Failed to send reset email. Please try again." });
     }
 });

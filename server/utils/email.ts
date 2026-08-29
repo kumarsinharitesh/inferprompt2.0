@@ -1,17 +1,30 @@
 import nodemailer from "nodemailer";
 
+// Accept both naming conventions: SMTP_* (current) and EMAIL_* (legacy, used in Render dashboard)
+function getSMTPUser(): string {
+  const u = process.env.SMTP_USER || process.env.EMAIL_USER;
+  if (!u) {
+    console.error("[Email] Missing env var — set SMTP_USER (or EMAIL_USER) in your environment.");
+    throw new Error("SMTP_USER and SMTP_PASS must be set in environment.");
+  }
+  return u;
+}
+
 function getTransporter() {
-  const user = process.env.SMTP_USER;
-  const rawPass = process.env.SMTP_PASS;
+  const user = getSMTPUser();
+  const rawPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT || "587");
 
-  if (!user || !rawPass) {
+  if (!rawPass) {
+    console.error("[Email] Missing env var — set SMTP_PASS (or EMAIL_PASS) in your environment.");
     throw new Error("SMTP_USER and SMTP_PASS must be set in environment.");
   }
 
   // Gmail App Passwords are shown with spaces for readability but must be sent without them
   const pass = rawPass.replace(/\s/g, "");
+
+  console.log(`[Email] Transporter ready — host: ${host}, port: ${port}, user: ${user}`);
 
   return nodemailer.createTransport({
     host,
@@ -38,7 +51,7 @@ export async function sendOTPEmail(to: string, otp: string, name: string) {
     </div>`;
 
   await transporter.sendMail({
-    from: `"InferPrompt" <${process.env.SMTP_USER}>`,
+    from: `"InferPrompt" <${getSMTPUser()}>`,
     to,
     subject: `${otp} — Your InferPrompt verification code`,
     html,
@@ -62,7 +75,7 @@ export async function sendResetPasswordEmail(to: string, otp: string, name: stri
     </div>`;
 
   await transporter.sendMail({
-    from: `"InferPrompt" <${process.env.SMTP_USER}>`,
+    from: `"InferPrompt" <${getSMTPUser()}>`,
     to,
     subject: `Password Reset Request — Code: ${otp}`,
     html,
