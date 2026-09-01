@@ -11,11 +11,8 @@ export default defineConfig({
       clientPort: 5173,
     },
     proxy: {
-      '/api/sarvam': {
-        target: 'https://api.sarvam.ai',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/sarvam/, ''),
-      },
+      // All /api/* routes → local Express server (port 3001)
+      // The Express server mounts /api/sarvam/stt which proxies to api.sarvam.ai server-side.
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,

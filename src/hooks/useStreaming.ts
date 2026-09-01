@@ -110,6 +110,8 @@ export function useStreaming(): StreamingState {
         const decoder = new TextDecoder();
         const collectedTokens: string[] = [];
         let buf = "";
+        let nextLineIsError = false;
+        let streamDone = false;
 
         timeoutRef.current = setTimeout(() => {
           controller.abort();
@@ -119,6 +121,7 @@ export function useStreaming(): StreamingState {
 
         while (true) {
           if (controller.signal.aborted) break;
+          if (streamDone) break;
 
           const { done, value } = await reader.read();
           clearStreamTimeout();
@@ -130,28 +133,43 @@ export function useStreaming(): StreamingState {
 
           for (const line of lines) {
             const trimmed = line.trim();
-            if (trimmed.startsWith("event: error")) continue;
+
+            // Track event type — payload comes on the next data: line
+            if (trimmed.startsWith("event: error")) {
+              nextLineIsError = true;
+              continue;
+            }
+            if (trimmed.startsWith("event: done")) {
+              // Server signals completion — stop re-arming the stall timeout
+              streamDone = true;
+              continue;
+            }
             if (!trimmed.startsWith("data:")) continue;
             const json = trimmed.slice(5).trim();
-            if (!json || json === "{}") continue;
+            if (!json || json === "{}") { nextLineIsError = false; continue; }
             try {
               const parsed = JSON.parse(json);
-              if (parsed.error) {
-                throw new Error(parsed.error);
+              // Surface server-side errors (e.g. missing API key, provider failure)
+              if (nextLineIsError || parsed.error) {
+                nextLineIsError = false;
+                throw new Error(parsed.error || parsed.chunk || "Provider error");
               }
+              nextLineIsError = false;
               if (parsed.chunk) {
                 collectedTokens.push(parsed.chunk);
                 setTokens((prev) => [...prev, parsed.chunk]);
                 const m = computeMetrics(collectedTokens, startTime);
                 setMetrics(m);
-                // Update live token count on every chunk
                 setLiveTokenCount(m.tokenCount);
 
-                timeoutRef.current = setTimeout(() => {
-                  controller.abort();
-                  setStatus("error");
-                  setError("Stream stalled — no data received for 30s.");
-                }, STREAM_TIMEOUT_MS);
+                // Only re-arm stall timeout if stream isn't already signalled done
+                if (!streamDone) {
+                  timeoutRef.current = setTimeout(() => {
+                    controller.abort();
+                    setStatus("error");
+                    setError("Stream stalled — no data received for 30s.");
+                  }, STREAM_TIMEOUT_MS);
+                }
               }
             } catch (parseErr: unknown) {
               if (parseErr instanceof Error && parseErr.message !== "JSON parse error") {

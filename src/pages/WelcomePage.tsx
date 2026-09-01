@@ -51,9 +51,9 @@ const features = [
 const providers = ["Sarvam AI", "OpenRouter Free", "Gemini", "Groq"];
 
 const StatPill: React.FC<{ value: string; label: string }> = ({ value, label }) => (
-  <div className="flex flex-col items-center gap-0.5 px-6 py-4 border-r border-[#1e1e2c] last:border-0">
-    <span className="font-mono text-2xl font-bold text-amber-400">{value}</span>
-    <span className="text-[11px] uppercase tracking-wider text-slate-600">{label}</span>
+  <div className="flex flex-1 flex-col items-center justify-center gap-1 py-5 border-r border-[#1e1e2c] last:border-0 min-w-0">
+    <span className="font-mono text-2xl font-bold text-amber-400 leading-none">{value}</span>
+    <span className="text-[11px] uppercase tracking-widest text-slate-600 mt-0.5">{label}</span>
   </div>
 );
 

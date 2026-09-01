@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 
 export interface AudioRecorderState {
   isRecording: boolean;
+  isTranscribing: boolean;
   audioBlob: Blob | null;
   transcript: string;
   durationSec: number;
@@ -12,29 +13,37 @@ export interface AudioRecorderState {
   clear: () => void;
 }
 
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-interface ISpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-}
-type SpeechRecognitionCtor = new () => ISpeechRecognition;
+/**
+ * Sends the recorded audio blob to the server-side Sarvam Saras v3 STT proxy.
+ * The proxy (/api/sarvam/stt) calls api.sarvam.ai/speech-to-text with the API key
+ * server-side, keeping it off the client.
+ */
+async function transcribeWithSaras(blob: Blob, mimeType: string): Promise<string> {
+  const form = new FormData();
+  const ext = mimeType.includes("ogg") ? "ogg" : "webm";
+  form.append("file", blob, `recording.${ext}`);
+  form.append("model", "saaras:v3");
+  form.append("language_code", "unknown"); // auto-detect (22 Indian languages)
 
-const SpeechRecognitionAPI: SpeechRecognitionCtor | null =
-  (typeof window !== "undefined" &&
-    ((window as unknown as { SpeechRecognition?: SpeechRecognitionCtor }).SpeechRecognition ??
-      (window as unknown as { webkitSpeechRecognition?: SpeechRecognitionCtor }).webkitSpeechRecognition)) ||
-  null;
+  const res = await fetch("/api/sarvam/stt", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Sarvam STT failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  // Sarvam v3 returns { transcript: "..." } or { transcripts: [{transcript:"..."}] }
+  return (data.transcript || data.transcripts?.[0]?.transcript || "").trim();
+}
 
 export function useAudioRecorder(): AudioRecorderState {
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [transcript, setTranscript] = useState("");
   const [durationSec, setDurationSec] = useState(0);
@@ -42,14 +51,11 @@ export function useAudioRecorder(): AudioRecorderState {
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
-  const recognition = useRef<ISpeechRecognition | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const secs = useRef(0);
 
-  
-  const finalizedText = useRef("");
-
-  const supportsTranscription = SpeechRecognitionAPI !== null;
+  // Sarvam Saras works via REST — always available (no browser API needed)
+  const supportsTranscription = true;
 
   const start = useCallback(async () => {
     setError(null);
@@ -58,7 +64,6 @@ export function useAudioRecorder(): AudioRecorderState {
     setDurationSec(0);
     secs.current = 0;
     chunks.current = [];
-    finalizedText.current = "";
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -73,9 +78,23 @@ export function useAudioRecorder(): AudioRecorderState {
       mediaRecorder.current = rec;
 
       rec.ondataavailable = e => { if (e.data.size > 0) chunks.current.push(e.data); };
-      rec.onstop = () => {
-        setAudioBlob(new Blob(chunks.current, { type: rec.mimeType || "audio/webm" }));
+
+      rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
+        setAudioBlob(blob);
+
+        // Transcribe with Sarvam Saras v3 via server proxy
+        setIsTranscribing(true);
+        try {
+          const text = await transcribeWithSaras(blob, rec.mimeType || "audio/webm");
+          setTranscript(text);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Transcription failed.";
+          setError(msg);
+        } finally {
+          setIsTranscribing(false);
+        }
       };
 
       rec.start(100);
@@ -86,40 +105,6 @@ export function useAudioRecorder(): AudioRecorderState {
         setDurationSec(secs.current);
       }, 1000);
 
-      if (SpeechRecognitionAPI) {
-        const sr = new SpeechRecognitionAPI();
-        sr.continuous = true;
-        sr.interimResults = true;
-        sr.lang = "en-IN";
-        recognition.current = sr;
-
-        sr.onresult = (e: SpeechRecognitionEvent) => {
-          // Only process newly-arrived results using resultIndex.
-          // Collect new final segments and append once to our accumulated ref.
-          let newFinal = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (e.results[i].isFinal) {
-              newFinal += e.results[i][0].transcript + " ";
-            }
-          }
-          if (newFinal) {
-            finalizedText.current += newFinal;
-          }
-
-          // Build live display: finalized sentences + current interim word(s)
-          let interim = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            if (!e.results[i].isFinal) {
-              interim += e.results[i][0].transcript;
-            }
-          }
-
-          setTranscript((finalizedText.current + interim).trim());
-        };
-
-        sr.onerror = () => { /* non-fatal — recording keeps going */ };
-        sr.start();
-      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Could not access microphone.";
       setError(
@@ -132,7 +117,6 @@ export function useAudioRecorder(): AudioRecorderState {
 
   const stop = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
-    recognition.current?.stop();
     mediaRecorder.current?.stop();
     setIsRecording(false);
   }, []);
@@ -143,9 +127,9 @@ export function useAudioRecorder(): AudioRecorderState {
     setTranscript("");
     setDurationSec(0);
     setError(null);
+    setIsTranscribing(false);
     chunks.current = [];
-    finalizedText.current = "";
   }, [stop]);
 
-  return { isRecording, audioBlob, transcript, durationSec, error, supportsTranscription, start, stop, clear };
+  return { isRecording, isTranscribing, audioBlob, transcript, durationSec, error, supportsTranscription, start, stop, clear };
 }

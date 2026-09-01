@@ -155,6 +155,13 @@ const RiskAnalyzerPage: React.FC = () => {
                 } else if (eventName === "model_failed") {
                     _modelResults[dataValue.provider] = { provider: dataValue.provider, error: dataValue.error };
                     setResults(prev => ({ ...prev, [dataValue.provider]: { provider: dataValue.provider, error: dataValue.error } }));
+                } else if (eventName === "insufficient_models") {
+                    // Quorum gate fired — credit was refunded server-side, restore UI credit and clear all results
+                    setCredits(credits); // Restore the optimistic deduction (credit was refunded server-side)
+                    setResults({} as Record<Provider, ModelRiskResult | PendingResult>);
+                    setPlatformResult(null);
+                    setConsensusResult(null);
+                    toast.error(dataValue.message || "Insufficient model responses. Credit refunded.", { id: loadingToastId, duration: 8000 });
                 } else if (eventName === "consensus") {
                     _consensusResult = dataValue;
                     setConsensusResult(dataValue);

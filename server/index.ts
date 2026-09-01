@@ -7,6 +7,7 @@ import paymentsRouter from "./routes/payments";
 import authRouter from "./routes/auth";
 import riskRouter from "./routes/risk";
 import inferenceRouter from "./routes/inference";
+import sarvamRouter from "./routes/sarvam";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/risk", riskRouter);
 app.use("/api/inference", inferenceRouter);
+app.use("/api/sarvam", sarvamRouter);
 
 app.listen(PORT, () => {
     console.log(`Backend Server running on http://localhost:${PORT}`);

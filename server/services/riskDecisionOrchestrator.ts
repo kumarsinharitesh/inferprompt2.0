@@ -211,7 +211,29 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
 
         await Promise.allSettled(promises);
 
-        // 6. Validate factors — only for successfully parsed models
+        // ── QUORUM GATE ──────────────────────────────────────────────────────
+        // A risk decision requires at least 2 independently successful models.
+        // A single model can hallucinate — consensus demands corroboration.
+        // If < 2 models succeeded, refund the credit and surface a clear error.
+        // ─────────────────────────────────────────────────────────────────────
+        if (completedModels.length < 2) {
+            await tryRefundReservation(
+                reservationLock._id.toString(),
+                "Insufficient model responses — credit refunded",
+                req.user!.userId
+            );
+            sendSse("insufficient_models", {
+                message: completedModels.length === 0
+                    ? "All AI models failed to respond. No risk decision can be made. Credit refunded."
+                    : "Only 1 model responded successfully. At least 2 are required for a reliable decision. Credit refunded.",
+                successCount: completedModels.length,
+                failedModels: failedModelIds,
+            });
+            res.end();
+            return;
+        }
+
+
         const validatedModelResults = completedModels.map(model => ({
             ...model,
             riskFactors: validateModelFactors(transaction, model)
