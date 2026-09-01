@@ -42,9 +42,14 @@ router.post(
 
             // Forward as multipart to Sarvam — use Node 18+ global FormData & Blob
             const form = new FormData();
+            // Buffer<ArrayBufferLike> is not a valid BlobPart in newer
+            // TypeScript DOM typings. Copy it into a browser-compatible typed
+            // array before forwarding the multipart upload to Sarvam.
+            const audioBytes = new Uint8Array(multerReq.file.buffer.byteLength);
+            audioBytes.set(multerReq.file.buffer);
             form.append(
                 "file",
-                new Blob([multerReq.file.buffer], { type: multerReq.file.mimetype }),
+                new Blob([audioBytes], { type: multerReq.file.mimetype || "audio/webm" }),
                 multerReq.file.originalname || "recording.webm"
             );
             form.append("model", model);
