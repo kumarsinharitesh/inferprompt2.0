@@ -37,8 +37,8 @@ router.post(
         }
 
         try {
-            const model = (req.body.model as string) || "saaras:v3";
-            const languageCode = (req.body.language_code as string) || "unknown";
+            const model = "saaras:v3";
+            const languageCode = "unknown";
 
             // Forward as multipart to Sarvam — use Node 18+ global FormData & Blob
             const form = new FormData();
@@ -48,6 +48,7 @@ router.post(
                 multerReq.file.originalname || "recording.webm"
             );
             form.append("model", model);
+            form.append("mode", "transcribe");
             form.append("language_code", languageCode);
             form.append("with_timestamps", "false");
 
@@ -59,11 +60,17 @@ router.post(
                 body: form,
             });
 
-            const data = await upstream.json() as any;
+            const upstreamText = await upstream.text();
+            let data: { transcript?: string; transcripts?: Array<{ transcript?: string }>; message?: string; error?: string } = {};
+            try {
+                data = JSON.parse(upstreamText);
+            } catch {
+                data = { message: upstreamText.slice(0, 500) };
+            }
 
             if (!upstream.ok) {
                 console.error("[Sarvam STT] Upstream error:", upstream.status, data);
-                return res.status(upstream.status).json({
+                return res.status(upstream.status >= 500 ? 502 : upstream.status).json({
                     error: data?.message || data?.error || `Sarvam STT error ${upstream.status}`,
                 });
             }

@@ -20,7 +20,7 @@ export interface AudioRecorderState {
  */
 async function transcribeWithSaras(blob: Blob, mimeType: string): Promise<string> {
   const form = new FormData();
-  const ext = mimeType.includes("ogg") ? "ogg" : "webm";
+  const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : mimeType.includes("wav") ? "wav" : "webm";
   form.append("file", blob, `recording.${ext}`);
   form.append("model", "saaras:v3");
   form.append("language_code", "unknown"); // auto-detect (22 Indian languages)
@@ -38,7 +38,9 @@ async function transcribeWithSaras(blob: Blob, mimeType: string): Promise<string
 
   const data = await res.json();
   // Sarvam v3 returns { transcript: "..." } or { transcripts: [{transcript:"..."}] }
-  return (data.transcript || data.transcripts?.[0]?.transcript || "").trim();
+  const transcript = (data.transcript || data.transcripts?.[0]?.transcript || "").trim();
+  if (!transcript) throw new Error("Sarvam could not detect speech in this recording. Please try again.");
+  return transcript;
 }
 
 export function useAudioRecorder(): AudioRecorderState {
@@ -53,6 +55,7 @@ export function useAudioRecorder(): AudioRecorderState {
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const secs = useRef(0);
+  const maxDurationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sarvam Saras works via REST — always available (no browser API needed)
   const supportsTranscription = true;
@@ -66,6 +69,9 @@ export function useAudioRecorder(): AudioRecorderState {
     chunks.current = [];
 
     try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        throw new Error("Audio recording is not supported by this browser.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -81,7 +87,13 @@ export function useAudioRecorder(): AudioRecorderState {
 
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        if (timer.current) { clearInterval(timer.current); timer.current = null; }
+        if (maxDurationTimer.current) { clearTimeout(maxDurationTimer.current); maxDurationTimer.current = null; }
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
+        if (!blob.size) {
+          setError("No audio was captured. Check your microphone and try again.");
+          return;
+        }
         setAudioBlob(blob);
 
         // Transcribe with Sarvam Saras v3 via server proxy
@@ -100,6 +112,12 @@ export function useAudioRecorder(): AudioRecorderState {
       rec.start(100);
       setIsRecording(true);
 
+      // Sarvam's synchronous Saaras v3 endpoint accepts audio up to 30s.
+      maxDurationTimer.current = setTimeout(() => {
+        if (rec.state === "recording") rec.stop();
+        setIsRecording(false);
+      }, 28_000);
+
       timer.current = setInterval(() => {
         secs.current += 1;
         setDurationSec(secs.current);
@@ -117,6 +135,7 @@ export function useAudioRecorder(): AudioRecorderState {
 
   const stop = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }
+    if (maxDurationTimer.current) { clearTimeout(maxDurationTimer.current); maxDurationTimer.current = null; }
     mediaRecorder.current?.stop();
     setIsRecording(false);
   }, []);

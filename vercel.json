@@ -5,10 +5,6 @@
   "framework": null,
   "rewrites": [
     {
-      "source": "/api/sarvam/(.*)",
-      "destination": "https://api.sarvam.ai/$1"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "https://inferprompt2-0.onrender.com/api/$1"
     },

@@ -74,10 +74,10 @@ const AudioRecorder: React.FC<Props> = ({ onReady }) => {
         </div>
       )}
 
-      {(rec.transcript || rec.isRecording) && (
+      {(rec.transcript || rec.isRecording || rec.isTranscribing) && (
         <div className="rounded-xl border border-[#1e1e2c] bg-[#0e0e16] p-3">
           <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-1.5">
-            {rec.supportsTranscription ? "Live transcript" : "Transcription unavailable in this browser"}
+            {rec.isTranscribing ? "Transcribing with Saaras v3" : rec.supportsTranscription ? "Saaras v3 transcript" : "Transcription unavailable in this browser"}
           </p>
           <p className="text-sm text-slate-300 italic min-h-[1.25rem]">
             {rec.transcript || (rec.isRecording ? "Listening…" : "")}
