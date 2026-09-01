@@ -74,6 +74,16 @@ const AudioRecorder: React.FC<Props> = ({ onReady }) => {
         </div>
       )}
 
+      {rec.isTranscribing && (
+        <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-slate-200">
+          <span className="h-4 w-4 shrink-0 rounded-full border-2 border-amber-300/30 border-t-amber-300 animate-spin" />
+          <div>
+            <p className="font-medium">Recording saved. Creating your transcript…</p>
+            <p className="mt-0.5 text-xs text-slate-400">Saaras v3 is processing the audio. This usually takes a few seconds.</p>
+          </div>
+        </div>
+      )}
+
       {(rec.transcript || rec.isRecording || rec.isTranscribing) && (
         <div className="rounded-xl border border-[#1e1e2c] bg-[#0e0e16] p-3">
           <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-1.5">

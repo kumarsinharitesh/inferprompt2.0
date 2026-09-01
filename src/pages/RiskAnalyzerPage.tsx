@@ -31,7 +31,11 @@ const RiskAnalyzerPage: React.FC = () => {
     const { credits, setCredits, isAuthenticated } = useAuth();
 
     const [transaction, setTransaction] = useState<Partial<TransactionData>>({
+        amount: 14500,
         currency: "INR",
+        country: "India",
+        merchantName: "Example Merchant",
+        mccCode: "5411",
         deviceType: "Mobile",
         isNewDevice: false,
         failedAttempts: 0,

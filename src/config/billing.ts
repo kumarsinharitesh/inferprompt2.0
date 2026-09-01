@@ -12,6 +12,6 @@ export const CREDIT_PACKS: CreditPack[] = [
         id: "risk-50",
         credits: 50,
         amountINR: 99,
-        label: "50 Risk Analyses"
+        label: "50 Credits"
     }
 ];

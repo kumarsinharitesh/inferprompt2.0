@@ -129,7 +129,7 @@ const CreditPurchaseModal: React.FC<Props> = ({ onClose, onSuccess }) => {
 
                 <div className="flex flex-col items-center text-center gap-2">
                     <h2 className="text-xl font-bold text-slate-200">Get More Credits</h2>
-                    <p className="text-sm text-slate-400">Top up your Risk Analysis credits to run high-volume concurrent LLM transactions natively.</p>
+                    <p className="text-sm text-slate-400">Add credits to run Playground prompts and Risk Analyzer checks.</p>
                 </div>
 
                 <div className="bg-[#0e0e16] border border-amber-500/20 rounded-xl p-6 flex flex-col items-center gap-3">

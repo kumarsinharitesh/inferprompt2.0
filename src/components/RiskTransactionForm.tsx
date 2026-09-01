@@ -78,6 +78,7 @@ const inputErrCls =
 
 const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
     const [mode, setMode] = useState<Mode>("form");
+    const [mccSearch, setMccSearch] = useState("");
 
     // Last known valid TransactionData — updated only on successful parse (JSON mode)
     // or on any form field change. This is what gets passed to the parent via onChange.
@@ -268,8 +269,8 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                                 <label htmlFor="tx-mcc" className={labelCls(tx.mccCode && !COMMON_MCC_CODES[tx.mccCode] ? true : false)}>
                                     MCC Code {tx.mccCode && COMMON_MCC_CODES[tx.mccCode] && <span className="text-emerald-400 ml-1">({COMMON_MCC_CODES[tx.mccCode]})</span>}
                                 </label>
-                                <input id="tx-mcc" type="text" list="mcc-list" maxLength={4}
-                                    value={tx.mccCode ?? ""} onChange={(e) => update({ mccCode: e.target.value })}
+                                <input id="tx-mcc" type="text" inputMode="numeric" list="mcc-list" maxLength={4}
+                                    value={tx.mccCode ?? ""} onChange={(e) => update({ mccCode: e.target.value.replace(/\D/g, "").slice(0, 4) })}
                                     placeholder="e.g. 5411" className={tx.mccCode && !COMMON_MCC_CODES[tx.mccCode] ? inputErrCls : inputCls} />
                                 <datalist id="mcc-list">
                                     {Object.entries(COMMON_MCC_CODES).map(([code, name]) => (
@@ -279,6 +280,29 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                                 {tx.mccCode && !COMMON_MCC_CODES[tx.mccCode] && (
                                     <p className="mt-1 text-[10px] text-red-500">Invalid or unknown MCC code.</p>
                                 )}
+                                <details className="mt-2 rounded-lg border border-[#2a2a38] bg-[#12121a] px-3 py-2">
+                                    <summary className="cursor-pointer text-[11px] font-medium text-amber-400">Browse supported MCC codes</summary>
+                                    <div className="mt-2 space-y-2">
+                                        <input
+                                            type="search"
+                                            value={mccSearch}
+                                            onChange={(e) => setMccSearch(e.target.value)}
+                                            placeholder="Search code or category, e.g. grocery"
+                                            className={`${inputCls} py-1.5 text-xs`}
+                                        />
+                                        <div className="max-h-44 overflow-y-auto rounded-md border border-[#2a2a38] bg-[#0e0e16] p-1">
+                                            {Object.entries(COMMON_MCC_CODES)
+                                                .filter(([code, name]) => `${code} ${name}`.toLowerCase().includes(mccSearch.trim().toLowerCase()))
+                                                .map(([code, name]) => (
+                                                    <button key={code} type="button" onClick={() => update({ mccCode: code })}
+                                                        className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-xs hover:bg-[#1e1e2c]">
+                                                        <span className="font-mono font-semibold text-amber-300">{code}</span>
+                                                        <span className="truncate text-slate-400">{name}</span>
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
                             <div>
                                 <label htmlFor="tx-merchant-age" className={labelCls(false)}>Merchant Age (months)</label>
@@ -465,7 +489,10 @@ const RiskTransactionForm: React.FC<Props> = ({ onChange }) => {
                                     </div>
                                     <div>
                                         <label className={labelCls(false)}>Discount %</label>
-                                        <input type="number" min="0" max="100" value={tx.offer?.discountPercentage ?? ""} onChange={e => update({ offer: { ...tx.offer, discountPercentage: parseInt(e.target.value, 10) } as any })} className={inputCls} placeholder="e.g. 10" />
+                                        <input type="number" min="0" max="100" value={tx.offer?.discountPercentage ?? ""} onChange={e => {
+                                            const parsed = parseInt(e.target.value, 10);
+                                            update({ offer: { ...tx.offer, discountPercentage: Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : undefined } as any });
+                                        }} className={inputCls} placeholder="e.g. 10" />
                                     </div>
                                     <div className="col-span-2">
                                         <label className={labelCls(false)}>Offer Verification Status</label>

@@ -15,10 +15,10 @@ import toast from "react-hot-toast";
 
 interface ChartRow {
   name: string;
+  provider: string;
   tokens: number;
   tps: number;
   latency: number; // seconds
-  sim: number;     // similarity %, 0 if not yet available
 }
 
 // ---------------------------------------------------------------------------
@@ -34,10 +34,10 @@ function toChartRows(sessions: SessionRecord[]): ChartRow[] {
     .reverse()
     .map((s, i) => ({
       name: `#${i + 1}`,
+      provider: s.provider || "Unknown",
       tokens: s.tokenCount ?? 0,
       tps: Math.round((s.tokensPerSec ?? 0) * 10) / 10,
       latency: s.latencyMs ? Math.round((s.latencyMs / 1000) * 100) / 100 : 0,
-      sim: s.similarityPct ?? 0,
     }));
 }
 
@@ -63,9 +63,7 @@ const BarView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
       <YAxis {...axisProps} />
       <Tooltip {...tooltipStyle} />
       <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
-      <Bar dataKey="tokens" fill="#2f80ed" name="Tokens" radius={[4, 4, 0, 0]} />
-      <Bar dataKey="tps" fill="#22d3ee" name="tok/s" radius={[4, 4, 0, 0]} />
-      <Bar dataKey="sim" fill="#34d399" name="Sim %" radius={[4, 4, 0, 0]} />
+      <Bar dataKey="tokens" fill="#2f80ed" name="Tokens generated" radius={[4, 4, 0, 0]} />
     </BarChart>
   </ResponsiveContainer>
 );
@@ -78,9 +76,8 @@ const LineView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
       <YAxis {...axisProps} />
       <Tooltip {...tooltipStyle} />
       <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
-      <Line type="monotone" dataKey="tokens" stroke="#2f80ed" strokeWidth={2} dot={{ r: 3 }} name="Tokens" />
-      <Line type="monotone" dataKey="tps" stroke="#22d3ee" strokeWidth={2} dot={{ r: 3 }} name="tok/s" />
-      <Line type="monotone" dataKey="sim" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="Sim %" />
+      <Line type="monotone" dataKey="tps" stroke="#22d3ee" strokeWidth={2} dot={{ r: 3 }} name="Response speed (tok/s)" />
+      <Line type="monotone" dataKey="latency" stroke="#829cff" strokeWidth={2} dot={{ r: 3 }} name="Latency (seconds)" />
     </LineChart>
   </ResponsiveContainer>
 );
@@ -106,7 +103,11 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, n
 };
 
 const PieView: React.FC<{ data: ChartRow[] }> = ({ data }) => {
-  const pieData = data.filter(r => r.tokens > 0).map(r => ({ name: r.name, value: r.tokens }));
+  const totalsByProvider = data.reduce<Record<string, number>>((totals, row) => {
+    totals[row.provider] = (totals[row.provider] ?? 0) + row.tokens;
+    return totals;
+  }, {});
+  const pieData = Object.entries(totalsByProvider).map(([name, value]) => ({ name, value }));
   const hasValues = pieData.length > 0;
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -124,7 +125,7 @@ const PieView: React.FC<{ data: ChartRow[] }> = ({ data }) => {
         ) : (
           <Pie data={[{ name: "No data", value: 1 }]} cx="50%" cy="50%" outerRadius={110} dataKey="value" fill="#1e1e2c" label={false} />
         )}
-        <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v} tokens`, "Tokens"]} />
+        <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v.toLocaleString()} tokens`, "Token share"]} />
         <Legend wrapperStyle={{ color: "#64748b", fontSize: 12 }} />
       </PieChart>
     </ResponsiveContainer>
@@ -136,7 +137,7 @@ const TableView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-[#1e1e2c] bg-[#0e0e16]">
-          {["Session", "Tokens", "tok/s", "Latency (s)", "Sim %"].map(h => (
+          {["Session", "Provider", "Tokens", "tok/s", "Latency (s)"].map(h => (
             <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>
           ))}
         </tr>
@@ -145,10 +146,10 @@ const TableView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
         {data.map((row, i) => (
           <tr key={row.name} className={`border-b border-[#1e1e2c] hover:bg-[#16161e] transition-colors ${i % 2 === 0 ? "bg-[#0e0e16]" : "bg-[#12121a]"}`}>
             <td className="px-4 py-3 font-medium text-slate-300">{row.name}</td>
+            <td className="px-4 py-3 capitalize text-slate-400">{row.provider}</td>
             <td className="px-4 py-3 font-mono text-amber-400">{row.tokens}</td>
             <td className="px-4 py-3 font-mono text-cyan-400">{row.tps}</td>
             <td className="px-4 py-3 font-mono text-slate-300">{row.latency}</td>
-            <td className="px-4 py-3 font-mono text-emerald-400">{row.sim > 0 ? `${row.sim}%` : "—"}</td>
           </tr>
         ))}
       </tbody>
@@ -161,10 +162,10 @@ const TableView: React.FC<{ data: ChartRow[] }> = ({ data }) => (
 // ---------------------------------------------------------------------------
 
 const chartViews: { id: ChartType; label: string }[] = [
-  { id: "bar", label: "Bar" },
-  { id: "line", label: "Line" },
-  { id: "pie", label: "Pie" },
-  { id: "table", label: "Table" },
+  { id: "bar", label: "Token use" },
+  { id: "line", label: "Speed" },
+  { id: "pie", label: "By provider" },
+  { id: "table", label: "Session table" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -215,13 +216,13 @@ const AnalyticsDashboard: React.FC = () => {
   const fetchAnalytics = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const [infRes, riskRes] = await Promise.all([
+      const [inferenceResult, riskResult] = await Promise.allSettled([
         fetch(`/api/inference/history`, { credentials: 'include' }),
         fetch(`/api/risk/history`, { credentials: 'include' })
       ]);
-      if (infRes.ok && riskRes.ok) {
-        const infData = await infRes.json();
-        const riskData = await riskRes.json();
+
+      if (inferenceResult.status === "fulfilled" && inferenceResult.value.ok) {
+        const infData = await inferenceResult.value.json();
 
         const mappedSessions: SessionRecord[] = (infData as any[]).map(s => ({
           id: s._id || s.sessionId || String(Math.random()),
@@ -235,7 +236,15 @@ const AnalyticsDashboard: React.FC = () => {
           similarityPct: s.similarityPct,
         }));
         setSessions(mappedSessions);
-        setRiskAnalyses(riskData);
+      } else {
+        toast.error("Inference history could not be refreshed.");
+      }
+
+      if (riskResult.status === "fulfilled" && riskResult.value.ok) {
+        const riskData = await riskResult.value.json();
+        setRiskAnalyses(Array.isArray(riskData) ? riskData : []);
+      } else {
+        toast.error("Risk analytics could not be refreshed.");
       }
     } catch (err) {
       console.error("Failed to load analytics natively:", err);
@@ -282,6 +291,12 @@ const AnalyticsDashboard: React.FC = () => {
 
   const data = toChartRows(sessions);
   const hasData = sessions.length > 0;
+  const chartDescription: Record<ChartType, string> = {
+    bar: "Tokens generated by each completed Playground session.",
+    line: "Response speed and latency over completed Playground sessions.",
+    pie: "How your total generated tokens are distributed across providers.",
+    table: "The raw metrics behind each completed Playground session.",
+  };
 
   const totals = hasData
     ? [
@@ -374,7 +389,7 @@ const AnalyticsDashboard: React.FC = () => {
       {/* INFERENCE ANALYTICS */}
       {/* ------------------------------------------------------------- */}
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-slate-200">Inference Analytics</h2>
           <button
             onClick={() => fetchAnalytics()}
@@ -420,8 +435,9 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
 
         {/* Chart area */}
-        <div className="rounded-xl border border-[#1e1e2c] bg-[#12121a] p-5">
-          <p className="text-sm font-medium text-slate-400 mb-4">Session Metrics</p>
+        <div className="rounded-xl border border-[#1e1e2c] bg-[#12121a] p-3 sm:p-5">
+          <p className="text-sm font-medium text-slate-300">{chart === "bar" ? "Token usage" : chart === "line" ? "Performance over time" : chart === "pie" ? "Token share by provider" : "Session details"}</p>
+          <p className="mb-4 mt-1 text-xs text-slate-500">{chartDescription[chart]}</p>
           {!hasData ? (
             <EmptyState />
           ) : (
@@ -435,8 +451,8 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
 
         {hasData && (
-          <p className="text-xs text-slate-700">
-            Showing {sessions.length} real inference session{sessions.length !== 1 ? "s" : ""}.
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Showing {sessions.length} completed inference session{sessions.length !== 1 ? "s" : ""}. Similarity percentage is intentionally not shown here: it measures the comparison between two outputs in the Diff view, while each Playground session has only one output.
           </p>
         )}
       </div>
@@ -447,7 +463,7 @@ const AnalyticsDashboard: React.FC = () => {
       {/* PAYMENT RISK ANALYTICS */}
       {/* ------------------------------------------------------------- */}
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-slate-200 uppercase tracking-widest text-emerald-400/90">Payment Risk Analytics</h2>
           <button
             onClick={() => fetchAnalytics()}
