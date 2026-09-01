@@ -18,7 +18,7 @@ const DiffPanel: React.FC<{ label: string; tokens: DiffResult["tokensA"] }> = ({
       aria-label={`${label} diff result`}
     >
       {tokens.map((t, i) => (
-        <span key={i} className={tokenClass[t.type]}>{t.text}{" "}</span>
+        <span key={i} className={tokenClass[t.type]}>{t.text}</span>
       ))}
     </div>
   </div>

@@ -9,7 +9,7 @@ const router = express.Router();
 const hasConfiguredKey = (...names: string[]) => names.some(name => Boolean(process.env[name]?.trim()));
 
 // Returns availability only. API key values are never sent to the browser.
-router.get("/providers", authMiddleware, (_req: AuthRequest, res) => {
+router.get("/providers", (_req, res) => {
     res.json({
         providers: {
             sarvam: hasConfiguredKey("SARVAM_API_KEY", "VITE_SARVAM_API_KEY"),
@@ -77,7 +77,12 @@ router.post("/stream", authMiddleware, async (req: AuthRequest, res) => {
 
 router.get("/history", authMiddleware, async (req: AuthRequest, res) => {
     try {
-        const history = await InferenceSession.find({ userId: req.user?.userId })
+        // Mock was removed from the product. Hide legacy records rather than
+        // misrepresenting old development data as a live provider.
+        const history = await InferenceSession.find({
+            userId: req.user?.userId,
+            provider: { $in: ["sarvam", "openrouter", "gemini", "groq"] }
+        })
             .sort({ createdAt: -1 })
             .limit(50);
         res.json(history);

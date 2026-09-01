@@ -12,7 +12,7 @@ interface Props {
 const MAX_MODELS = 4;
 
 const RiskModelSelector: React.FC<Props> = ({ selected, onChange }) => {
-    const platformAvailability = useProviderAvailability(false);
+    const platformAvailability = useProviderAvailability();
     const toggle = (id: Provider) => {
         if (!selected.includes(id) && selected.length >= MAX_MODELS) return; // cap at 4
         onChange(

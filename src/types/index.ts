@@ -252,6 +252,9 @@ export interface RiskFactor {
   supported?: boolean;
   supportType?: "DIRECT_FIELD" | "DERIVED_FIELD" | "MCC_LOOKUP" | "CROSS_FIELD" | "UNSUPPORTED";
   allowedForDecision?: boolean;
+  /** Exact deterministic contribution after its correlation-group cap. */
+  contribution?: number;
+  group?: string;
 }
 
 /** Typed payload constructed by the UI and consumed by the analysis pipeline. */
@@ -282,6 +285,12 @@ export interface PlatformRiskResult {
   level: RiskLevel;
   recommendation: RiskRecommendation;
   factors: RiskFactor[];
+  /** Evidence quality is independent from the numerical risk score. */
+  confidence?: number;
+  modifiers?: Array<{ name: string; effect: number; reason: string }>;
+  groupContributions?: Record<string, number>;
+  dataQuality?: string[];
+  hardStops?: string[];
 }
 
 export interface FactorConsensus {

@@ -39,16 +39,16 @@ export interface CanonicalEvidence {
     currency: string;
     merchantName: string;
     merchantVerification: string;
-    merchantAge: number;
+    merchantAge: number | null;
     mccCode: string;
     mccCategory: string;
     paymentMethod: string;
     paymentVerification: string;
     kycStatus: string;
     deviceType: string;
-    isNewDevice: boolean;
-    failedAttempts: number;
-    previousTransactionCount: number;
+    isNewDevice: boolean | null;
+    failedAttempts: number | null;
+    previousTransactionCount: number | null;
     ipCountry: string;
     userCountry: string;
     locationMatch: boolean;
@@ -70,16 +70,16 @@ export function buildTransactionEvidence(tx: TransactionData): CanonicalEvidence
         currency: tx.currency,
         merchantName: tx.merchantName,
         merchantVerification: tx.merchantVerification || "UNKNOWN",
-        merchantAge: tx.merchantAge || 0,
+        merchantAge: typeof tx.merchantAge === "number" ? tx.merchantAge : null,
         mccCode: tx.mccCode || "UNKNOWN",
         mccCategory,
         paymentMethod: tx.paymentMethod || "UNKNOWN",
         paymentVerification: tx.paymentVerification || "UNKNOWN",
         kycStatus: tx.walletDetails?.kycStatus || "UNKNOWN",
         deviceType: tx.deviceType || "UNKNOWN",
-        isNewDevice: !!tx.isNewDevice,
-        failedAttempts: tx.failedAttempts || 0,
-        previousTransactionCount: tx.previousTransactionCount || 0,
+        isNewDevice: typeof tx.isNewDevice === "boolean" ? tx.isNewDevice : null,
+        failedAttempts: typeof tx.failedAttempts === "number" ? tx.failedAttempts : null,
+        previousTransactionCount: typeof tx.previousTransactionCount === "number" ? tx.previousTransactionCount : null,
         ipCountry: tx.ipCountry || "UNKNOWN",
         userCountry: tx.userCountry || tx.country || "UNKNOWN",
         locationMatch,

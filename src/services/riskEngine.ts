@@ -1,275 +1,308 @@
-import type { TransactionData, PlatformRiskResult, RiskFactor, RiskLevel, RiskRecommendation } from "../types";
+import type { PlatformRiskResult, RiskFactor, RiskLevel, RiskRecommendation, TransactionData } from "../types";
 
-// ---------------------------------------------------------------------------
-// Configuration / Risk Weights
-// ---------------------------------------------------------------------------
-
+/**
+ * The deterministic risk engine is the source of truth for platform decisions.
+ * Scores are grouped so correlated evidence cannot be counted repeatedly.
+ */
 export const RISK_THRESHOLDS = {
-    // Score to Level mapping
-    level: {
-        LOW: { min: 0, max: 24, label: "LOW" as RiskLevel },
-        MEDIUM: { min: 25, max: 49, label: "MEDIUM" as RiskLevel },
-        HIGH: { min: 50, max: 74, label: "HIGH" as RiskLevel },
-        CRITICAL: { min: 75, max: 100, label: "CRITICAL" as RiskLevel },
-    },
+    LOW: 0,
+    MEDIUM: 25,
+    HIGH: 50,
+    CRITICAL: 75,
+} as const;
+
+export const RISK_GROUP_CAPS = {
+    authentication: 42,
+    merchantTrust: 22,
+    deviceHistory: 12,
+    velocity: 20,
+    amount: 14,
+    location: 18,
+    timing: 6,
+} as const;
+
+type GroupName = keyof typeof RISK_GROUP_CAPS;
+
+interface ScoringState {
+    factors: RiskFactor[];
+    groups: Record<GroupName, number>;
+    modifiers: Array<{ name: string; effect: number; reason: string }>;
+    dataQuality: string[];
+    hardStops: string[];
+}
+
+const isMeaningful = (value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    if (typeof value !== "string") return true;
+    const normalized = value.trim().toUpperCase();
+    return normalized !== "" && normalized !== "UNKNOWN" && normalized !== "NOT_PROVIDED" && normalized !== "N/A";
 };
 
-export const RECOMMENDATION_MAP: Record<RiskLevel, RiskRecommendation> = {
-    LOW: "ALLOW",
-    MEDIUM: "REVIEW",
-    HIGH: "REVIEW",
-    CRITICAL: "BLOCK",
-};
+function addGroupedFactor(
+    state: ScoringState,
+    group: GroupName,
+    requestedContribution: number,
+    factor: Omit<RiskFactor, "contribution" | "group">
+) {
+    const available = Math.max(0, RISK_GROUP_CAPS[group] - state.groups[group]);
+    const contribution = Math.min(requestedContribution, available);
+    if (contribution <= 0) return;
 
-export const CONFIGURABLE_WEIGHTS = {
-    newDevice: 20,
-    failedAttempts: {
-        moderateThreshold: 2, // 2-3
-        moderateWeight: 15,
-        highThreshold: 4,     // 4+
-        highWeight: 30,
-    },
-    merchantAge: {
-        newThreshold: 1,      // < 1 month
-        newWeight: 20,
-        youngThreshold: 6,    // < 6 months (and >= 1)
-        youngWeight: 5,
-    },
-    locationMismatch: 25,
-    nightTime: {
-        startHour: 0,
-        endHour: 5, // 00:00 to 04:59
-        weight: 15,
-    },
-    // Prototype/configurable demonstration heuristic for high amounts
-    demoAmountAnomaly: {
-        veryHighThreshold: 50000,
-        veryHighWeight: 20,
-        highThreshold: 10000,
-        highWeight: 10,
-    },
-    // Phase 12 Payment Context Heuristics
-    paymentContext: {
-        paymentVerificationFailed: 25, // Explicit prototype signal overriding safe behavior safely
-        threeDSFailed: 30,
-        avsMismatch: 15,
-        upiVerificationFailed: 25,
-        bankVerificationFailed: 25,
-        posTerminalUnverified: 15,
-        merchantAnonymous: 20,
-        merchantUnverified: 10,
+    state.groups[group] += contribution;
+    state.factors.push({ ...factor, contribution, group });
+}
+
+function levelFor(score: number): RiskLevel {
+    if (score >= RISK_THRESHOLDS.CRITICAL) return "CRITICAL";
+    if (score >= RISK_THRESHOLDS.HIGH) return "HIGH";
+    if (score >= RISK_THRESHOLDS.MEDIUM) return "MEDIUM";
+    return "LOW";
+}
+
+function severityFor(contribution: number): RiskLevel {
+    if (contribution >= 30) return "CRITICAL";
+    if (contribution >= 18) return "HIGH";
+    if (contribution >= 8) return "MEDIUM";
+    return "LOW";
+}
+
+function addDataQualityWarnings(tx: TransactionData, state: ScoringState) {
+    if (!isMeaningful(tx.merchantVerification)) state.dataQuality.push("Merchant verification is unknown; it was not treated as a risk signal.");
+    if (!isMeaningful(tx.paymentMethod)) state.dataQuality.push("Payment method is unknown; method-specific checks were skipped.");
+    if (!isMeaningful(tx.paymentVerification)) state.dataQuality.push("Payment verification is unknown; it was not treated as failed.");
+    if (tx.isNewDevice === undefined) state.dataQuality.push("Device history is unavailable; new-device risk was not assumed.");
+    if (tx.previousTransactionCount === undefined) state.dataQuality.push("Transaction history is unavailable; amount behaviour could not be compared to a baseline.");
+
+    if (tx.paymentMethod === "UPI" && !tx.upiDetails) {
+        state.dataQuality.push("UPI payment selected without UPI verification details.");
     }
-};
-
-// ---------------------------------------------------------------------------
-// Pure Deterministic Evaluation Functions
-// ---------------------------------------------------------------------------
-// Undefined optional properties always contribute 0 risk.
+    if (tx.paymentMethod === "CARD" && !tx.cardDetails) {
+        state.dataQuality.push("Card payment selected without card authentication details.");
+    }
+    if (tx.merchantVerification === "VERIFIED" && tx.merchantAge === 0) {
+        state.dataQuality.push("Merchant is marked verified but has an age of zero months.");
+    }
+    if (tx.isNewDevice === false && tx.previousTransactionCount === 0) {
+        state.dataQuality.push("Known device conflicts with zero recorded previous transactions.");
+    }
+    if (tx.paymentVerification === "VERIFIED" && tx.paymentMethod === "UPI" && tx.upiDetails?.upiVerification === "FAILED") {
+        state.dataQuality.push("Payment verification conflicts with failed UPI verification.");
+    }
+}
 
 export function calculateRiskScore(tx: TransactionData): PlatformRiskResult {
-    const factors: RiskFactor[] = [];
-    let score = 0;
+    const state: ScoringState = {
+        factors: [],
+        groups: { authentication: 0, merchantTrust: 0, deviceHistory: 0, velocity: 0, amount: 0, location: 0, timing: 0 },
+        modifiers: [],
+        dataQuality: [],
+        hardStops: [],
+    };
 
-    // A. Transaction amount (Demo purely static heuristic)
-    if (tx.amount >= CONFIGURABLE_WEIGHTS.demoAmountAnomaly.veryHighThreshold) {
-        factors.push({
-            name: "Very High Amount",
-            severity: "HIGH",
-            description: "Transaction amount exceeds very high anomaly threshold (prototype heuristic).",
-            evidence: `Amount: ${tx.amount} ${tx.currency}`
-        });
-        score += CONFIGURABLE_WEIGHTS.demoAmountAnomaly.veryHighWeight;
-    } else if (tx.amount >= CONFIGURABLE_WEIGHTS.demoAmountAnomaly.highThreshold) {
-        factors.push({
-            name: "High Amount",
-            severity: "MEDIUM",
-            description: "Transaction amount exceeds high anomaly threshold (prototype heuristic).",
-            evidence: `Amount: ${tx.amount} ${tx.currency}`
-        });
-        score += CONFIGURABLE_WEIGHTS.demoAmountAnomaly.highWeight;
-    }
+    addDataQualityWarnings(tx, state);
 
-    // B. New Device
-    if (tx.isNewDevice === true) {
-        factors.push({
-            name: "New Device",
-            severity: "MEDIUM",
-            description: "Transaction originates from a device not historically associated with the user.",
-            evidence: "isNewDevice = true"
-        });
-        score += CONFIGURABLE_WEIGHTS.newDevice;
-    }
+    // Authentication group: payment and instrument failures often describe the same event.
+    const methodFailure =
+        (tx.paymentMethod === "UPI" && tx.upiDetails?.upiVerification === "FAILED") ||
+        (tx.paymentMethod === "CARD" && tx.cardDetails?.threeDS === "FAILED") ||
+        ((tx.paymentMethod === "NET_BANKING" || tx.paymentMethod === "BANK_TRANSFER") &&
+            (tx.netBankingDetails?.bankVerification === "FAILED" || tx.bankTransferDetails?.bankVerification === "FAILED"));
 
-    // C. Failed Attempts
-    if (tx.failedAttempts !== undefined) {
-        if (tx.failedAttempts >= CONFIGURABLE_WEIGHTS.failedAttempts.highThreshold) {
-            factors.push({
-                name: "Many Failed Attempts",
-                severity: "HIGH",
-                description: "Multiple transaction failures detected recently.",
-                evidence: `failedAttempts: ${tx.failedAttempts}`
-            });
-            score += CONFIGURABLE_WEIGHTS.failedAttempts.highWeight;
-        } else if (tx.failedAttempts >= CONFIGURABLE_WEIGHTS.failedAttempts.moderateThreshold) {
-            factors.push({
-                name: "Failed Attempts",
-                severity: "MEDIUM",
-                description: "Some recent failed attempts detected.",
-                evidence: `failedAttempts: ${tx.failedAttempts}`
-            });
-            score += CONFIGURABLE_WEIGHTS.failedAttempts.moderateWeight;
-        }
-    }
-
-    // D. Merchant Age
-    if (tx.merchantAge !== undefined) {
-        if (tx.merchantAge < CONFIGURABLE_WEIGHTS.merchantAge.newThreshold) {
-            factors.push({
-                name: "New Merchant",
-                severity: "HIGH",
-                description: "The merchant account was created very recently.",
-                evidence: `merchantAge: ${tx.merchantAge} month(s)`
-            });
-            score += CONFIGURABLE_WEIGHTS.merchantAge.newWeight;
-        } else if (tx.merchantAge < CONFIGURABLE_WEIGHTS.merchantAge.youngThreshold) {
-            factors.push({
-                name: "Young Merchant",
-                severity: "MEDIUM",
-                description: "The merchant account has limited historical volume.",
-                evidence: `merchantAge: ${tx.merchantAge} month(s)`
-            });
-            score += CONFIGURABLE_WEIGHTS.merchantAge.youngWeight;
-        }
-    }
-
-    // E. Location Mismatch
-    if (tx.ipCountry && tx.userCountry) {
-        if (tx.ipCountry.trim().toLowerCase() !== tx.userCountry.trim().toLowerCase()) {
-            factors.push({
-                name: "Location Mismatch",
-                severity: "HIGH",
-                description: "IP address origin country differs from registered user country.",
-                evidence: `IP: ${tx.ipCountry}, User: ${tx.userCountry}`
-            });
-            score += CONFIGURABLE_WEIGHTS.locationMismatch;
-        }
-    }
-
-    // F. Transaction Time Anomaly
-    if (tx.transactionTimestamp) {
-        const d = new Date(tx.transactionTimestamp);
-        if (!isNaN(d.getTime())) {
-            const h = d.getHours();
-            // If it falls in the night time window (e.g. 0 to 4 inclusive when endHour is 5)
-            if (h >= CONFIGURABLE_WEIGHTS.nightTime.startHour && h < CONFIGURABLE_WEIGHTS.nightTime.endHour) {
-                factors.push({
-                    name: "Unusual Time",
-                    severity: "MEDIUM",
-                    description: "Transaction occurred during statistically low-volume late night hours.",
-                    evidence: `Local hour: ${h}`
-                });
-                score += CONFIGURABLE_WEIGHTS.nightTime.weight;
-            }
-        }
-    }
-
-    // G. Merchant Verification Status
-    if (tx.merchantVerification) {
-        if (tx.merchantVerification === "ANONYMOUS") {
-            factors.push({
-                name: "Anonymous Merchant",
-                severity: "MEDIUM",
-                description: "Merchant identity is entirely anonymous or hidden.",
-                evidence: "merchantVerification: ANONYMOUS"
-            });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.merchantAnonymous;
-        } else if (tx.merchantVerification === "UNVERIFIED") {
-            factors.push({
-                name: "Unverified Merchant",
-                severity: "LOW",
-                description: "Merchant identity has not been explicitly verified.",
-                evidence: "merchantVerification: UNVERIFIED"
-            });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.merchantUnverified;
-        }
-    }
-
-    // H. Payment Verification Source
     if (tx.paymentVerification === "FAILED") {
-        factors.push({
+        addGroupedFactor(state, "authentication", 34, {
             name: "Payment Verification Failed",
-            severity: "HIGH",
-            description: "The underlying payment context authorization reported a failure.",
-            evidence: "paymentVerification: FAILED"
+            severity: "CRITICAL",
+            description: "The payment authorisation check explicitly failed.",
+            evidence: "paymentVerification: FAILED",
+            fieldRefs: ["paymentVerification"],
         });
-        score += CONFIGURABLE_WEIGHTS.paymentContext.paymentVerificationFailed;
     }
 
-    // I. Method-Specific Verification
-    if (tx.paymentMethod === "CARD" && tx.cardDetails) {
-        if (tx.cardDetails.threeDS === "FAILED") {
-            factors.push({
-                name: "3DS Failed",
-                severity: "HIGH",
-                description: "3D Secure authentication failed.",
-                evidence: `Card Network: ${tx.cardDetails.cardNetwork || "Unknown"}`
-            });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.threeDSFailed;
-        }
-        if (tx.cardDetails.avsStatus === "MISMATCH") {
-            factors.push({
-                name: "AVS Mismatch",
-                severity: "MEDIUM",
-                description: "Card Address Verification System returned a full mismatch.",
-                evidence: "avsStatus: MISMATCH"
-            });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.avsMismatch;
-        }
-    } else if (tx.paymentMethod === "UPI" && tx.upiDetails) {
-        if (tx.upiDetails.upiVerification === "FAILED") {
-            factors.push({
-                name: "UPI Verification Failed",
-                severity: "HIGH",
-                description: "UPI handle or application context failed verification.",
-                evidence: `App: ${tx.upiDetails.upiApp || "Unknown"}`
-            });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.upiVerificationFailed;
-        }
-    } else if ((tx.paymentMethod === "NET_BANKING" && tx.netBankingDetails?.bankVerification === "FAILED") ||
-        (tx.paymentMethod === "BANK_TRANSFER" && tx.bankTransferDetails?.bankVerification === "FAILED")) {
-        factors.push({
+    if (tx.paymentMethod === "CARD" && tx.cardDetails?.threeDS === "FAILED") {
+        addGroupedFactor(state, "authentication", tx.paymentVerification === "FAILED" ? 8 : 42, {
+            name: "3DS Authentication Failed",
+            severity: "CRITICAL",
+            description: "Card 3D Secure authentication failed. It is capped with any payment-verification failure to avoid double counting.",
+            evidence: "cardDetails.threeDS: FAILED",
+            fieldRefs: ["paymentMethod", "cardDetails.threeDS"],
+        });
+        state.hardStops.push("Card 3D Secure authentication failed.");
+    } else if (tx.paymentMethod === "UPI" && tx.upiDetails?.upiVerification === "FAILED") {
+        addGroupedFactor(state, "authentication", tx.paymentVerification === "FAILED" ? 8 : 30, {
+            name: "UPI Verification Failed",
+            severity: "HIGH",
+            description: "UPI verification failed. Its contribution shares the authentication group cap with the payment check.",
+            evidence: "upiDetails.upiVerification: FAILED",
+            fieldRefs: ["paymentMethod", "upiDetails.upiVerification"],
+        });
+    } else if ((tx.paymentMethod === "NET_BANKING" || tx.paymentMethod === "BANK_TRANSFER") && methodFailure) {
+        addGroupedFactor(state, "authentication", tx.paymentVerification === "FAILED" ? 8 : 30, {
             name: "Bank Verification Failed",
             severity: "HIGH",
-            description: "Direct bank authorization context reported a failure.",
-            evidence: "bankVerification: FAILED"
+            description: "Bank verification failed and is grouped with payment authentication evidence.",
+            evidence: "bankVerification: FAILED",
+            fieldRefs: ["paymentMethod"],
         });
-        score += CONFIGURABLE_WEIGHTS.paymentContext.bankVerificationFailed;
-    } else if (tx.posDetails) {
-        if (tx.posDetails.terminalVerified === false) {
-            factors.push({
-                name: "Unverified POS Terminal",
+    }
+    if (tx.paymentVerification === "FAILED" && methodFailure) {
+        state.hardStops.push("Payment and method-specific verification both failed.");
+    }
+    if (tx.paymentMethod === "CARD" && tx.cardDetails?.avsStatus === "MISMATCH") {
+        addGroupedFactor(state, "authentication", 8, {
+            name: "Address Verification Mismatch",
+            severity: "MEDIUM",
+            description: "Address verification did not match; contribution is capped with authentication evidence.",
+            evidence: "cardDetails.avsStatus: MISMATCH",
+            fieldRefs: ["cardDetails.avsStatus"],
+        });
+    }
+
+    // Merchant trust group: anonymous status and zero merchant age are correlated.
+    if (tx.merchantVerification === "ANONYMOUS") {
+        addGroupedFactor(state, "merchantTrust", 18, {
+            name: "Anonymous Merchant",
+            severity: "HIGH",
+            description: "Merchant identity is explicitly anonymous.",
+            evidence: "merchantVerification: ANONYMOUS",
+            fieldRefs: ["merchantVerification"],
+        });
+    } else if (tx.merchantVerification === "UNVERIFIED") {
+        addGroupedFactor(state, "merchantTrust", 10, {
+            name: "Unverified Merchant",
+            severity: "MEDIUM",
+            description: "Merchant identity has not been verified.",
+            evidence: "merchantVerification: UNVERIFIED",
+            fieldRefs: ["merchantVerification"],
+        });
+    }
+    if (typeof tx.merchantAge === "number" && Number.isFinite(tx.merchantAge)) {
+        if (tx.merchantAge === 0) {
+            addGroupedFactor(state, "merchantTrust", 8, {
+                name: "New Merchant",
                 severity: "MEDIUM",
-                description: "Physical point of sale terminal is unverified or untrusted.",
-                evidence: "terminalVerified: false"
+                description: "The merchant age is zero months; this is capped with merchant identity status.",
+                evidence: "merchantAge: 0 months",
+                fieldRefs: ["merchantAge"],
             });
-            score += CONFIGURABLE_WEIGHTS.paymentContext.posTerminalUnverified;
+        } else if (tx.merchantAge < 6) {
+            addGroupedFactor(state, "merchantTrust", 5, {
+                name: "Young Merchant",
+                severity: "LOW",
+                description: "The merchant has limited operating history.",
+                evidence: `merchantAge: ${tx.merchantAge} months`,
+                fieldRefs: ["merchantAge"],
+            });
         }
     }
 
-    // Final deterministic score and enum derivations
-    const finalScore = Math.max(0, Math.min(100, score)); // Clamp 0-100
+    // Device history group: a new device and no history must not be treated as two independent events.
+    if (tx.isNewDevice === true) {
+        addGroupedFactor(state, "deviceHistory", 9, {
+            name: "New Device",
+            severity: "MEDIUM",
+            description: "The device is not associated with prior user activity.",
+            evidence: "isNewDevice: true",
+            fieldRefs: ["isNewDevice"],
+        });
+        if (tx.previousTransactionCount === 0) {
+            addGroupedFactor(state, "deviceHistory", 3, {
+                name: "Limited Device History",
+                severity: "LOW",
+                description: "No previous transactions are available for this new device; contribution is capped with the device signal.",
+                evidence: "previousTransactionCount: 0",
+                fieldRefs: ["previousTransactionCount"],
+            });
+        }
+    }
 
-    let finalLevel = RISK_THRESHOLDS.level.LOW.label;
-    if (finalScore >= RISK_THRESHOLDS.level.CRITICAL.min) finalLevel = RISK_THRESHOLDS.level.CRITICAL.label;
-    else if (finalScore >= RISK_THRESHOLDS.level.HIGH.min) finalLevel = RISK_THRESHOLDS.level.HIGH.label;
-    else if (finalScore >= RISK_THRESHOLDS.level.MEDIUM.min) finalLevel = RISK_THRESHOLDS.level.MEDIUM.label;
+    if (typeof tx.failedAttempts === "number" && Number.isFinite(tx.failedAttempts)) {
+        if (tx.failedAttempts >= 4) {
+            addGroupedFactor(state, "velocity", 20, {
+                name: "Repeated Failed Attempts",
+                severity: "HIGH",
+                description: "Four or more recent failed attempts indicate a velocity anomaly.",
+                evidence: `failedAttempts: ${tx.failedAttempts}`,
+                fieldRefs: ["failedAttempts"],
+            });
+        } else if (tx.failedAttempts >= 2) {
+            addGroupedFactor(state, "velocity", 10, {
+                name: "Recent Failed Attempts",
+                severity: "MEDIUM",
+                description: "Two or three recent failures indicate elevated retry behaviour.",
+                evidence: `failedAttempts: ${tx.failedAttempts}`,
+                fieldRefs: ["failedAttempts"],
+            });
+        }
+    }
 
-    const finalRecommendation = RECOMMENDATION_MAP[finalLevel];
+    if (isMeaningful(tx.ipCountry) && isMeaningful(tx.userCountry) && tx.ipCountry!.trim().toLowerCase() !== tx.userCountry!.trim().toLowerCase()) {
+        addGroupedFactor(state, "location", 18, {
+            name: "Location Mismatch",
+            severity: "HIGH",
+            description: "The IP origin differs from the registered user country.",
+            evidence: `IP: ${tx.ipCountry}, user: ${tx.userCountry}`,
+            fieldRefs: ["ipCountry", "userCountry"],
+        });
+    }
+
+    if (tx.transactionTimestamp) {
+        const date = new Date(tx.transactionTimestamp);
+        if (Number.isFinite(date.getTime()) && date.getHours() >= 0 && date.getHours() < 5) {
+            addGroupedFactor(state, "timing", 6, {
+                name: "Unusual Transaction Time",
+                severity: "LOW",
+                description: "The transaction occurred during low-volume overnight hours.",
+                evidence: `Local hour: ${date.getHours()}`,
+                fieldRefs: ["transactionTimestamp"],
+            });
+        }
+    }
+
+    // Amount is only contextual. Without a personal baseline, conservative absolute bands are used.
+    if (Number.isFinite(tx.amount)) {
+        if (tx.amount < 100) {
+            state.modifiers.push({ name: "Low-value amount context", effect: -3, reason: "A very low amount slightly reduces exposure; it does not override verification failures." });
+        } else if (tx.amount >= 50_000) {
+            addGroupedFactor(state, "amount", 14, {
+                name: "Very High Amount Context",
+                severity: "MEDIUM",
+                description: "Amount is high in the absence of a user-specific historical baseline.",
+                evidence: `amount: ${tx.amount} ${tx.currency}`,
+                fieldRefs: ["amount", "currency"],
+            });
+        } else if (tx.amount >= 10_000) {
+            addGroupedFactor(state, "amount", 6, {
+                name: "High Amount Context",
+                severity: "LOW",
+                description: "Amount receives a conservative contextual adjustment because no user baseline was supplied.",
+                evidence: `amount: ${tx.amount} ${tx.currency}`,
+                fieldRefs: ["amount", "currency"],
+            });
+        }
+    }
+
+    // MCC is intentionally not scored alone. It is contextual evidence for models and investigation.
+    const positiveContributions = Object.values(state.groups).reduce((sum, value) => sum + value, 0);
+    const modifierTotal = state.modifiers.reduce((sum, modifier) => sum + modifier.effect, 0);
+    const score = Math.max(0, Math.min(100, Math.round(positiveContributions + modifierTotal)));
+    const level = levelFor(score);
+    const recommendation: RiskRecommendation = state.hardStops.length > 0 || level === "CRITICAL"
+        ? "BLOCK"
+        : level === "HIGH" || level === "MEDIUM"
+            ? "REVIEW"
+            : "ALLOW";
+
+    const confidence = Math.max(35, Math.min(95, 90 - state.dataQuality.length * 6));
 
     return {
-        score: finalScore,
-        level: finalLevel,
-        recommendation: finalRecommendation,
-        factors,
+        score,
+        level,
+        recommendation,
+        confidence,
+        factors: state.factors.map(factor => ({ ...factor, severity: severityFor(factor.contribution ?? 0) })),
+        modifiers: state.modifiers,
+        groupContributions: state.groups,
+        dataQuality: state.dataQuality,
+        hardStops: state.hardStops,
     };
 }

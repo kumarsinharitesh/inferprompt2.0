@@ -224,7 +224,10 @@ const AnalyticsDashboard: React.FC = () => {
       if (inferenceResult.status === "fulfilled" && inferenceResult.value.ok) {
         const infData = await inferenceResult.value.json();
 
-        const mappedSessions: SessionRecord[] = (infData as any[]).map(s => ({
+        const liveProviders = new Set(["sarvam", "openrouter", "gemini", "groq"]);
+        const mappedSessions: SessionRecord[] = (infData as any[])
+          .filter(s => liveProviders.has(s.provider))
+          .map(s => ({
           id: s._id || s.sessionId || String(Math.random()),
           sessionId: s.sessionId || "",
           timestamp: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
@@ -233,8 +236,8 @@ const AnalyticsDashboard: React.FC = () => {
           tokenCount: s.tokenCount ?? s.totalTokens ?? 0,
           tokensPerSec: s.tokensPerSec ?? (s.totalTokens && s.latencyMs ? Math.round((s.totalTokens / (s.latencyMs / 1000)) * 10) / 10 : 0),
           latencyMs: s.latencyMs ?? 0,
-          similarityPct: s.similarityPct,
-        }));
+            similarityPct: s.similarityPct,
+          }));
         setSessions(mappedSessions);
       } else {
         toast.error("Inference history could not be refreshed.");

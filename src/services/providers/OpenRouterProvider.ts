@@ -5,7 +5,7 @@ import { makeSseStream } from "../../utils/sseParser";
 interface OpenRouterResponse {
   choices?: Array<{
     delta?: { content?: string; reasoning_content?: string };
-    message?: { content?: string; reasoning_content?: string; reasoning?: string };
+    message?: { content?: string | Array<{ type?: string; text?: string }>; reasoning_content?: string; reasoning?: string };
   }>;
 }
 
@@ -29,7 +29,8 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
 function extractJsonObject(content: string): string {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)?.[1] ?? content;
   const candidate = fenced.match(/\{[\s\S]*\}/)?.[0] ?? fenced.trim();
-  JSON.parse(candidate);
+  // The shared risk parser performs tolerant JSON recovery and schema
+  // normalization. Do not discard a recoverable free-router completion here.
   return candidate;
 }
 
@@ -73,7 +74,12 @@ export class OpenRouterProvider implements InferenceProvider {
     }
 
     const data = await response.json() as OpenRouterResponse;
-    const content = data.choices?.[0]?.message?.content?.trim();
+    const messageContent = data.choices?.[0]?.message?.content;
+    const content = typeof messageContent === "string"
+      ? messageContent.trim()
+      : Array.isArray(messageContent)
+        ? messageContent.map(part => part.text ?? "").join("").trim()
+        : "";
     if (!content) throw new Error("OpenRouter returned an empty risk completion");
     return extractJsonObject(content);
   }

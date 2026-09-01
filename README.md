@@ -71,7 +71,7 @@ Use `.env.example` as the reference. Never commit `.env`; it is already ignored 
 
 Required for the full application:
 
-- `MONGO_URI` – MongoDB connection string.
+- `MONGODB_URI` – MongoDB connection string.
 - `JWT_SECRET` – long random value used to sign sessions.
 - `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` – Razorpay **test-mode** credentials for credit purchases.
 - `EMAIL_USER` and `EMAIL_PASS` – SMTP credentials for email verification and password resets.

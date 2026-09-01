@@ -41,7 +41,7 @@ const RiskAnalyzerPage: React.FC = () => {
         failedAttempts: 0,
         previousTransactionCount: 0,
     });
-    const [selectedModels, setSelectedModels] = useState<Provider[]>(["openrouter"]);
+    const [selectedModels, setSelectedModels] = useState<Provider[]>(["sarvam", "openrouter"]);
     const [analyzeState, setAnalyzeState] = useState<AnalyzeState>("idle");
     const [errors, setErrors] = useState<Array<{ field: string; message: string }>>([]);
 
@@ -166,6 +166,8 @@ const RiskAnalyzerPage: React.FC = () => {
                     setPlatformResult(null);
                     setConsensusResult(null);
                     toast.error(dataValue.message || "Insufficient model responses. Credit refunded.", { id: loadingToastId, duration: 8000 });
+                } else if (eventName === "consensus_unavailable") {
+                    toast(dataValue.message || "AI consensus is unavailable; the platform decision remains available.", { id: loadingToastId, icon: "info", duration: 7000 });
                 } else if (eventName === "consensus") {
                     _consensusResult = dataValue;
                     setConsensusResult(dataValue);
@@ -355,7 +357,7 @@ const RiskAnalyzerPage: React.FC = () => {
                         <div className="flex flex-col gap-3">
                             <h2 className="text-xl font-black text-slate-100 flex items-center gap-3 uppercase tracking-widest pl-2">
                                 <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                                Platform {consensusResult ? "Synthesized" : "Deterministic"} Score
+                                Platform Decision Score
                             </h2>
                             <div className="rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-[#0e0e16] to-[#12121a] p-8 shadow-2xl shadow-indigo-900/10">
 
@@ -363,10 +365,10 @@ const RiskAnalyzerPage: React.FC = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-10">
                                     <div className="flex items-center gap-10">
                                         <div className="flex flex-col">
-                                            <span className="text-xs uppercase font-black tracking-widest text-indigo-400/80 mb-2">Confidence Score</span>
+                                            <span className="text-xs uppercase font-black tracking-widest text-indigo-400/80 mb-2">Risk Score</span>
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-6xl font-black text-indigo-400 tracking-tighter">
-                                                    {analyzeState === "running" ? "--" : consensusResult ? Math.round(consensusResult.averageModelRiskScore) : platformResult?.score}
+                                                    {analyzeState === "running" ? "--" : platformResult?.score}
                                                 </span>
                                                 <span className="text-xl font-bold text-indigo-400/30">/ 100</span>
                                             </div>
@@ -384,7 +386,7 @@ const RiskAnalyzerPage: React.FC = () => {
                                                         (consensusResult ? consensusResult.consensusRiskLevel : platformResult?.level) === "HIGH" ? "text-orange-400" :
                                                             "text-red-500"
                                                     }`}>
-                                                    {consensusResult ? consensusResult.consensusRiskLevel : platformResult?.level}
+                                                    {platformResult?.level}
                                                 </span>
                                             )}
                                         </div>
@@ -395,11 +397,11 @@ const RiskAnalyzerPage: React.FC = () => {
                                         {analyzeState === "running" ? (
                                             <span className="text-2xl font-black mt-1 text-slate-600 animate-pulse">EVALUATING</span>
                                         ) : (
-                                            <span className={`text-2xl font-black mt-1 tracking-wider px-6 py-2 rounded-xl ${(consensusResult ? consensusResult.consensusRecommendation : platformResult?.recommendation) === "ALLOW" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                                                (consensusResult ? consensusResult.consensusRecommendation : platformResult?.recommendation) === "BLOCK" ? "bg-red-500/10 text-red-500 border border-red-500/20" :
+                                            <span className={`text-2xl font-black mt-1 tracking-wider px-6 py-2 rounded-xl ${platformResult?.recommendation === "ALLOW" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                                                platformResult?.recommendation === "BLOCK" ? "bg-red-500/10 text-red-500 border border-red-500/20" :
                                                     "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
                                                 }`}>
-                                                {(consensusResult ? consensusResult.consensusRecommendation : platformResult?.recommendation) === "REVIEW" ? "MANUAL REVIEW" : (consensusResult ? consensusResult.consensusRecommendation : platformResult?.recommendation)}
+                                                {platformResult?.recommendation === "REVIEW" ? "MANUAL REVIEW" : platformResult?.recommendation}
                                             </span>
                                         )}
                                     </div>
@@ -414,6 +416,8 @@ const RiskAnalyzerPage: React.FC = () => {
                                                 <div key={i} className="flex flex-col gap-2 p-4 rounded-xl border border-indigo-500/10 bg-[#0a0a0f] shadow-inner shadow-black/40">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-sm font-bold text-slate-200">{f.name}</span>
+                                                        <div className="flex items-center gap-2">
+                                                          {typeof f.contribution === "number" && <span className="text-[10px] font-mono text-slate-500">+{f.contribution}</span>}
                                                         <span className={`text-[10px] uppercase font-black px-2 py-1 rounded ${f.severity === "LOW" ? "bg-emerald-500/10 text-emerald-400" :
                                                             f.severity === "MEDIUM" ? "bg-yellow-500/10 text-yellow-400" :
                                                                 f.severity === "HIGH" ? "bg-orange-500/10 text-orange-400" :
@@ -421,6 +425,7 @@ const RiskAnalyzerPage: React.FC = () => {
                                                             }`}>
                                                             {f.severity}
                                                         </span>
+                                                        </div>
                                                     </div>
                                                     <span className="text-xs text-slate-400 leading-relaxed font-medium">{f.description}</span>
                                                 </div>
@@ -432,6 +437,29 @@ const RiskAnalyzerPage: React.FC = () => {
                                         Passes all deterministic threshold checks flawlessly. No legacy risk boundaries triggered natively.
                                     </div>
                                 ) : null}
+
+                                {platformResult && analyzeState !== "running" && ((platformResult.modifiers?.length ?? 0) > 0 || (platformResult.dataQuality?.length ?? 0) > 0) && (
+                                    <div className="pt-5 mt-5 border-t border-indigo-500/10 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-[11px] uppercase font-black tracking-widest text-slate-500">Score context</span>
+                                            <div className="mt-2 flex flex-col gap-1.5">
+                                                {(platformResult.modifiers ?? []).map(modifier => (
+                                                    <p key={modifier.name} className="text-xs text-slate-400">
+                                                        <span className="font-mono text-emerald-400">{modifier.effect > 0 ? "+" : ""}{modifier.effect}</span> {modifier.reason}
+                                                    </p>
+                                                ))}
+                                                {(platformResult.modifiers?.length ?? 0) === 0 && <p className="text-xs text-slate-500">No contextual score modifiers applied.</p>}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] uppercase font-black tracking-widest text-slate-500">Data quality</span>
+                                            <div className="mt-2 flex flex-col gap-1.5">
+                                                {(platformResult.dataQuality ?? []).slice(0, 3).map(note => <p key={note} className="text-xs text-slate-400">{note}</p>)}
+                                                {(platformResult.dataQuality?.length ?? 0) === 0 && <p className="text-xs text-emerald-400/80">Evidence is internally consistent.</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -455,7 +483,7 @@ const RiskAnalyzerPage: React.FC = () => {
                                     Consensus Analytics
                                 </h2>
                                 <div className="bg-[#0e0e16] border border-red-500/20 p-8 rounded-3xl text-center shadow-xl">
-                                    <p className="text-sm font-bold text-red-400">Consensus derivation failed securely. Connected AI inference streams were completely rejected natively.</p>
+                                    <p className="text-sm font-bold text-amber-400">AI consensus is unavailable, so this run is showing the deterministic platform decision. Provider statuses remain available below.</p>
                                 </div>
                             </div>
                         )}

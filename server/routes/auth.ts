@@ -10,6 +10,19 @@ import { authMiddleware, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
 
+const normalizeEmail = (value: unknown) => typeof value === "string" ? value.trim().toLowerCase() : "";
+const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+function emailFailure(res: express.Response, err: any) {
+    const message = String(err?.message || "");
+    const configurationProblem = message.includes("EMAIL_DELIVERY_NOT_CONFIGURED") || err?.code === "EAUTH" || err?.code === "ECONNECTION" || err?.code === "ETIMEDOUT";
+    return res.status(configurationProblem ? 503 : 502).json({
+        error: configurationProblem
+            ? "Email delivery is not configured on the server. Set RESEND_API_KEY and EMAIL_FROM, or SMTP_USER and SMTP_PASS."
+            : "We could not deliver the OTP. Please try again shortly."
+    });
+}
+
 function generateOTP(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -26,14 +39,15 @@ const getSecret = () => {
 // ---------------------------------------------------------------------------
 router.post("/send-otp", async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, password } = req.body;
+        const email = normalizeEmail(req.body.email);
 
-        if (!name || !email || !password || password.length < 8) {
+        if (!name || !isEmail(email) || !password || password.length < 8) {
             return res.status(400).json({ error: "Name, valid email, and password (min 8 chars) are required." });
         }
 
         // Check if already registered
-        const existing = await User.findOne({ email: email.toLowerCase() });
+        const existing = await User.findOne({ email });
         if (existing) {
             return res.status(409).json({ error: "An account with this email already exists." });
         }
@@ -42,21 +56,17 @@ router.post("/send-otp", async (req, res) => {
         const code = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-        await OTP.findOneAndDelete({ email: email.toLowerCase() }); // Remove stale OTP
-        await OTP.create({ email: email.toLowerCase(), code, expiresAt });
-
-        // Send email
+        // Send before replacing the existing code. A temporary mail-provider
+        // failure therefore never invalidates an OTP the user already received.
         await sendOTPEmail(email, code, name);
+        await OTP.findOneAndDelete({ email });
+        await OTP.create({ email, code, expiresAt });
 
         console.log(`[OTP] Sent to ${email}`);
         return res.json({ message: "OTP sent successfully. Please check your email." });
     } catch (err: any) {
         console.error("send-otp error:", err);
-        // Surface email config errors clearly
-        if (err.message?.includes("SMTP_USER") || err.message?.includes("SMTP_PASS") || err.message?.includes("Invalid login") || err.code === "EAUTH" || err.code === "ECONNECTION") {
-            return res.status(503).json({ error: "Email service is not configured on the server. Please contact support." });
-        }
-        return res.status(500).json({ error: "Failed to send OTP. Please try again." });
+        return emailFailure(res, err);
     }
 });
 
@@ -115,12 +125,12 @@ router.post("/verify-otp", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/forgot-password", async (req, res) => {
     try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: "Email is required." });
+        const email = normalizeEmail(req.body.email);
+        if (!isEmail(email)) {
+            return res.status(400).json({ error: "Enter a valid email address." });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase() });
+        const user = await User.findOne({ email });
         if (!user) {
             // To prevent email enumeration, usually we return success anyway,
             // but for smaller apps returning an error is better UX.
@@ -130,20 +140,16 @@ router.post("/forgot-password", async (req, res) => {
         const code = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        await OTP.findOneAndDelete({ email: email.toLowerCase() });
-        await OTP.create({ email: email.toLowerCase(), code, expiresAt });
-
         await sendResetPasswordEmail(email, code, user.name);
+        await OTP.findOneAndDelete({ email });
+        await OTP.create({ email, code, expiresAt });
 
         console.log(`[Auth] Password reset OTP sent to ${email}`);
         return res.json({ message: "Password reset OTP sent successfully." });
 
     } catch (err: any) {
         console.error("forgot-password error:", err);
-        if (err.message?.includes("SMTP_USER") || err.message?.includes("SMTP_PASS") || err.message?.includes("Invalid login") || err.code === "EAUTH" || err.code === "ECONNECTION") {
-            return res.status(503).json({ error: "Email service is not configured on the server. Please contact support." });
-        }
-        return res.status(500).json({ error: "Failed to send reset email. Please try again." });
+        return emailFailure(res, err);
     }
 });
 
@@ -247,10 +253,17 @@ router.post("/logout", (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/auth/me
 // ---------------------------------------------------------------------------
-router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/me", async (req: AuthRequest, res) => {
     try {
-        const user = await User.findById(req.user?.userId);
-        if (!user) return res.status(401).json({ error: "User not found" });
+        const token = req.cookies?.token;
+        if (!token) return res.json({ user: null, credits: 0, totalPurchased: 0, totalUsed: 0 });
+
+        const payload = jwt.verify(token, getSecret()) as { userId: string };
+        const user = await User.findById(payload.userId);
+        if (!user) {
+            res.clearCookie("token", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" });
+            return res.json({ user: null, credits: 0, totalPurchased: 0, totalUsed: 0 });
+        }
 
         const balance = await CreditBalance.findOne({ userId: user._id });
         return res.json({
@@ -260,7 +273,10 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
             totalUsed: balance?.totalUsed || 0
         });
     } catch (err) {
-        return res.status(500).json({ error: "Internal Server Error" });
+        // The session probe is called during normal app startup. An expired
+        // cookie is a guest session, not a client-visible server failure.
+        res.clearCookie("token", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" });
+        return res.json({ user: null, credits: 0, totalPurchased: 0, totalUsed: 0 });
     }
 });
 

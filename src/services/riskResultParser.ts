@@ -33,6 +33,95 @@ function extractJsonText(raw: string): string {
     return cleaned;
 }
 
+const normalizedKey = (key: string) => key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+function pick(source: Record<string, unknown>, names: string[]): unknown {
+    const wanted = new Set(names.map(normalizedKey));
+    return Object.entries(source).find(([key]) => wanted.has(normalizedKey(key)))?.[1];
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function numberInRange(value: unknown): number | null {
+    const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    if (!Number.isFinite(numberValue)) return null;
+    // Some providers express confidence/score as a 0-1 proportion.
+    const normalized = numberValue >= 0 && numberValue <= 1 && numberValue !== 0 ? numberValue * 100 : numberValue;
+    return normalized >= 0 && normalized <= 100 ? Math.round(normalized) : null;
+}
+
+function normalizeLevel(value: unknown, score: number | null): "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null {
+    const raw = typeof value === "string" ? value.trim().toUpperCase().replace(/[\s-]+/g, "_") : "";
+    const aliases: Record<string, "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"> = {
+        LOW: "LOW", SAFE: "LOW", MINIMAL: "LOW",
+        MEDIUM: "MEDIUM", MODERATE: "MEDIUM",
+        HIGH: "HIGH", HIGH_RISK: "HIGH", ELEVATED: "HIGH", ELEVATED_RISK: "HIGH",
+        CRITICAL: "CRITICAL", CRITICAL_RISK: "CRITICAL", VERY_HIGH: "CRITICAL", VERY_HIGH_RISK: "CRITICAL", SEVERE: "CRITICAL",
+    };
+    if (aliases[raw]) return aliases[raw];
+    if (score === null) return null;
+    if (score >= 75) return "CRITICAL";
+    if (score >= 50) return "HIGH";
+    if (score >= 25) return "MEDIUM";
+    return "LOW";
+}
+
+function normalizeRecommendation(value: unknown, level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"): "ALLOW" | "REVIEW" | "BLOCK" {
+    const raw = typeof value === "string" ? value.trim().toUpperCase().replace(/[\s-]+/g, "_") : "";
+    if (["ALLOW", "APPROVE", "ACCEPT"].includes(raw)) return "ALLOW";
+    if (["BLOCK", "DECLINE", "REJECT", "DENY"].includes(raw)) return "BLOCK";
+    if (["REVIEW", "MANUAL_REVIEW", "INVESTIGATE"].includes(raw)) return "REVIEW";
+    return level === "CRITICAL" ? "BLOCK" : level === "LOW" ? "ALLOW" : "REVIEW";
+}
+
+function normalizeRiskPayload(raw: Record<string, unknown>): Record<string, unknown> {
+    // Free-router models occasionally wrap an otherwise valid schema,
+    // including two levels such as { data: { assessment: { ... } } }.
+    let source = raw;
+    for (let depth = 0; depth < 3; depth++) {
+        let nestedSource: Record<string, unknown> | null = null;
+        for (const key of ["analysis", "riskAssessment", "risk_analysis", "assessment", "result", "data", "risk"]) {
+            const nested = asRecord(pick(source, [key]));
+            if (nested) {
+                nestedSource = nested;
+                break;
+            }
+        }
+        if (!nestedSource) break;
+        source = nestedSource;
+    }
+
+    const scoreValue = numberInRange(pick(source, ["riskScore", "risk_score", "score", "riskScorePercent", "risk_score_percent", "overallRiskScore", "overall_risk_score"]));
+    const level = normalizeLevel(pick(source, ["riskLevel", "risk_level", "level", "riskCategory", "risk_category", "riskRating", "risk_rating", "overallRisk", "overall_risk"]), scoreValue);
+    const score = scoreValue ?? (level === "CRITICAL" ? 85 : level === "HIGH" ? 65 : level === "MEDIUM" ? 40 : level === "LOW" ? 15 : null);
+    if (score === null || level === null) {
+        throw new Error("Missing both a valid risk score and risk level.");
+    }
+
+    const rawFactors = pick(source, ["riskFactors", "risk_factors", "factors", "flags", "riskSignals", "risk_signals"]);
+    const riskFactors = Array.isArray(rawFactors)
+        ? rawFactors.map(factor => typeof factor === "string"
+            ? { name: factor, severity: "MEDIUM", description: factor }
+            : factor)
+        : [];
+    const confidence = numberInRange(pick(source, ["confidence", "confidenceScore", "confidence_score"])) ?? 65;
+    const reasoningValue = pick(source, ["reasoning", "rationale", "explanation", "summary"]);
+
+    return {
+        ...source,
+        riskScore: score,
+        riskLevel: level,
+        confidence,
+        recommendation: normalizeRecommendation(pick(source, ["recommendation", "action", "decision"]), level),
+        reasoning: typeof reasoningValue === "string" ? reasoningValue : "Provider returned a structured risk assessment without narrative reasoning.",
+        riskFactors,
+    };
+}
+
 
 export function parseModelRiskResult(
     provider: Provider,
@@ -99,9 +188,10 @@ export function parseModelRiskResult(
             }
         }
 
-        if (!parsed || typeof parsed !== "object") {
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
             throw new Error("Result is not a JSON object.");
         }
+        parsed = normalizeRiskPayload(parsed);
 
         // Type validation
         if (!["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(parsed.riskLevel)) {

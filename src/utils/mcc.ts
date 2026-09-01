@@ -3,6 +3,7 @@ export const MCC_MAPPINGS: Record<string, string> = {
     "5812": "Eating Places",
     "5311": "Department Stores",
     "5912": "Drug Stores",
+    "5921": "Alcohol Stores",
     "5411": "Grocery Stores",
     "5814": "Fast Food Restaurants",
     "4511": "Airlines",

@@ -1,7 +1,10 @@
 import type { DiffToken, DiffResult } from "../types";
 
 export function tokenize(text: string): string[] {
-  const matches = text.match(/\w+|[^\w\s]/g);
+  // `\w` only understands ASCII and splitting strings by code unit corrupts
+  // surrogate-pair characters such as emoji. This Unicode-aware tokenizer
+  // preserves words, whitespace, punctuation and every Unicode code point.
+  const matches = text.match(/\p{L}[\p{L}\p{M}\p{N}'’-]*|\p{N}+|\s+|[^\s\p{L}\p{N}]/gu);
   return matches ?? [];
 }
 

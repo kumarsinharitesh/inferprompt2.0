@@ -1,83 +1,75 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-// Accept both naming conventions: SMTP_* (current) and EMAIL_* (legacy, used in Render dashboard)
-function getSMTPUser(): string {
-  const u = process.env.SMTP_USER || process.env.EMAIL_USER;
-  if (!u) {
-    console.error("[Email] Missing env var — set SMTP_USER (or EMAIL_USER) in your environment.");
-    throw new Error("SMTP_USER and SMTP_PASS must be set in environment.");
-  }
-  return u;
-}
+const fromAddress = () => process.env.EMAIL_FROM || process.env.RESEND_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
 
-function getTransporter() {
-  const user = getSMTPUser();
+function getSmtpTransporter() {
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const rawPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT || "587");
-
-  if (!rawPass) {
-    console.error("[Email] Missing env var — set SMTP_PASS (or EMAIL_PASS) in your environment.");
-    throw new Error("SMTP_USER and SMTP_PASS must be set in environment.");
+  if (!user || !rawPass) {
+    throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: set RESEND_API_KEY or SMTP_USER/SMTP_PASS.");
   }
 
-  // Gmail App Passwords are shown with spaces for readability but must be sent without them
-  const pass = rawPass.replace(/\s/g, "");
-
-  console.log(`[Email] Transporter ready — host: ${host}, port: ${port}, user: ${user}`);
+  const port = Number(process.env.SMTP_PORT || "587");
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: SMTP_PORT is invalid.");
+  }
 
   return nodemailer.createTransport({
-    host,
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
     port,
     secure: port === 465,
-    auth: { user, pass },
+    requireTLS: port === 587,
+    auth: { user, pass: rawPass.replace(/\s/g, "") },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 20_000,
   });
+}
+
+function emailHtml(title: string, copy: string, otp: string, footer: string) {
+  return `
+    <div style="font-family:Arial,sans-serif;background:#0b1220;color:#e2e8f0;padding:32px;border-radius:16px;max-width:480px;margin:auto">
+      <div style="font-size:25px;font-weight:800;color:#60a5fa;margin-bottom:24px">InferPrompt</div>
+      <h1 style="font-size:20px;color:#f8fafc;margin:0 0 10px">${title}</h1>
+      <p style="color:#a8b7cf;font-size:14px;line-height:1.5">${copy}</p>
+      <div style="background:#101b30;border:1px solid #29466f;border-radius:12px;padding:22px;text-align:center;margin:24px 0">
+        <span style="font-size:36px;font-weight:800;letter-spacing:12px;color:#93c5fd;font-family:monospace">${otp}</span>
+      </div>
+      <p style="color:#71829e;font-size:12px;line-height:1.5">${footer}</p>
+    </div>`;
+}
+
+async function deliver(to: string, subject: string, html: string) {
+  const from = fromAddress();
+  if (!from) throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: set EMAIL_FROM or SMTP_USER.");
+
+  // Resend is preferred on Render because it does not rely on long-lived SMTP
+  // sockets. SMTP remains fully supported for existing Gmail App Password setups.
+  if (process.env.RESEND_API_KEY?.trim()) {
+    const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
+      from: `InferPrompt <${from}>`, to, subject, html,
+    });
+    if (result.error) throw new Error(`EMAIL_DELIVERY_FAILED: ${result.error.message}`);
+    return;
+  }
+
+  const transporter = getSmtpTransporter();
+  await transporter.sendMail({ from: `InferPrompt <${from}>`, to, subject, html });
 }
 
 export async function sendOTPEmail(to: string, otp: string, name: string) {
-  const transporter = getTransporter();
-
-  const html = `
-    <div style="font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e2e8f0; padding: 40px; border-radius: 16px; max-width: 480px; margin: auto;">
-      <div style="text-align: center; margin-bottom: 28px;">
-        <span style="font-size: 28px; font-weight: 900; color: #2f80ed; letter-spacing: -0.5px;">InferPrompt</span>
-      </div>
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #ffffff;">Verify your email, ${name} 👋</h2>
-      <p style="color: #94a3b8; margin-bottom: 24px; font-size: 14px;">Use the OTP below to complete your registration. It expires in <strong style="color: #63b3ed;">10 minutes</strong>.</p>
-      <div style="background: #0d1526; border: 1px solid #273755; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
-        <span style="font-size: 42px; font-weight: 900; letter-spacing: 16px; color: #5fa8ff; font-family: monospace;">${otp}</span>
-      </div>
-      <p style="color: #475569; font-size: 12px; text-align: center;">If you did not request this, you can safely ignore this email.</p>
-    </div>`;
-
-  await transporter.sendMail({
-    from: `"InferPrompt" <${getSMTPUser()}>`,
+  await deliver(
     to,
-    subject: `${otp} — Your InferPrompt verification code`,
-    html,
-  });
+    `${otp} - Your InferPrompt verification code`,
+    emailHtml(`Verify your email, ${name}`, "Use this one-time code to complete your registration. It expires in 10 minutes.", otp, "If you did not request an account, you can safely ignore this email.")
+  );
 }
 
 export async function sendResetPasswordEmail(to: string, otp: string, name: string) {
-  const transporter = getTransporter();
-
-  const html = `
-    <div style="font-family: 'Segoe UI', sans-serif; background: #0a0a12; color: #e2e8f0; padding: 40px; border-radius: 16px; max-width: 480px; margin: auto;">
-      <div style="text-align: center; margin-bottom: 28px;">
-        <span style="font-size: 28px; font-weight: 900; color: #2f80ed; letter-spacing: -0.5px;">InferPrompt</span>
-      </div>
-      <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #ffffff;">Reset your password, ${name}</h2>
-      <p style="color: #94a3b8; margin-bottom: 24px; font-size: 14px;">Use the OTP below to reset your password. It expires in <strong style="color: #63b3ed;">10 minutes</strong>.</p>
-      <div style="background: #0d1526; border: 1px solid #273755; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
-        <span style="font-size: 42px; font-weight: 900; letter-spacing: 16px; color: #5fa8ff; font-family: monospace;">${otp}</span>
-      </div>
-      <p style="color: #475569; font-size: 12px; text-align: center;">If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
-    </div>`;
-
-  await transporter.sendMail({
-    from: `"InferPrompt" <${getSMTPUser()}>`,
+  await deliver(
     to,
-    subject: `Password Reset Request — Code: ${otp}`,
-    html,
-  });
+    `${otp} - Reset your InferPrompt password`,
+    emailHtml(`Reset your password, ${name}`, "Use this one-time code to reset your password. It expires in 10 minutes.", otp, "If you did not request this reset, you can safely ignore this email. Your password will remain unchanged.")
+  );
 }

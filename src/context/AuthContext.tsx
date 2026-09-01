@@ -37,8 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             if (res.ok) {
                 const data = await res.json();
-                setUser(data.user);
-                setCreditsState(data.credits);
+                setUser(data.user ?? null);
+                setCreditsState(typeof data.credits === "number" ? data.credits : 0);
             } else {
                 setUser(null);
                 setCreditsState(0);

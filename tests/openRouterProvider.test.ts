@@ -1,4 +1,5 @@
 import { OpenRouterProvider } from "../src/services/providers/OpenRouterProvider.js";
+import { parseModelRiskResult } from "../src/services/riskResultParser.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Assertion failed: ${message}`);
@@ -65,6 +66,29 @@ async function runTests() {
     assert(calls.length === 2, "Unsupported structured output should make exactly one fallback request");
     assert(!("response_format" in calls[1]), "Fallback must omit unsupported response_format");
     assert(calls.every(call => call.model === "openrouter/free"), "Fallback must never pin a retiring free model");
+
+    const normalized = parseModelRiskResult("openrouter", JSON.stringify({
+      risk_score: "0.72",
+      confidence_score: "0.81",
+      action: "manual_review",
+      rationale: "Unusual verification pattern.",
+      factors: ["UPI verification did not pass"],
+    }), { latencyMs: 1, tokenCount: 1 });
+    assert(!normalized.error, "A valid snake_case provider response must not be rejected");
+    assert(normalized.riskScore === 72 && normalized.riskLevel === "HIGH", "Risk level should be derived from a valid score");
+    assert(normalized.recommendation === "REVIEW" && normalized.riskFactors.length === 1, "Aliases should normalize safely");
+
+    const nested = parseModelRiskResult("openrouter", JSON.stringify({
+      data: { assessment: {
+        overall_risk_score: "0.66",
+        risk_rating: "high risk",
+        decision: "manual review",
+        confidence: "80",
+        risk_signals: ["New device"],
+      } },
+    }), { latencyMs: 1, tokenCount: 1 });
+    assert(!nested.error, "Nested OpenRouter assessment payloads must normalize");
+    assert(nested.riskScore === 66 && nested.riskLevel === "HIGH" && nested.recommendation === "REVIEW", "Nested aliases must produce a valid result");
     console.log("OpenRouter provider regression tests passed.");
   } finally {
     globalThis.fetch = originalFetch;

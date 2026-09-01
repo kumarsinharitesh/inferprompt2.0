@@ -138,6 +138,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
     // Errored models are tracked in failedModelIds for UI transparency only.
     const completedModels: ModelRiskResult[] = [];
     const failedModelIds: string[] = [];
+    const failedModels: ModelRiskResult[] = [];
 
     try {
         // 5. Execute LLMs concurrently server-side
@@ -188,6 +189,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
                 // from completedModels so it cannot skew average score, median, or factor agreement.
                 if (result.error) {
                     failedModelIds.push(providerId);
+                    failedModels.push(result);
                     sendSse("model_failed", {
                         provider: providerId,
                         error: result.error,
@@ -200,6 +202,16 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
             } catch (err: any) {
                 console.error(`Provider error for ${providerId}:`, err);
                 failedModelIds.push(providerId);
+                failedModels.push({
+                    provider: providerId,
+                    riskScore: 0,
+                    riskLevel: "LOW",
+                    confidence: 0,
+                    recommendation: "REVIEW",
+                    reasoning: "",
+                    riskFactors: [],
+                    error: timedOut ? "Provider timed out." : (err.message || "Provider failed."),
+                });
                 sendSse("model_failed", {
                     provider: providerId,
                     error: timedOut ? "OpenRouter risk analysis timed out after 45 seconds." : (err.message || "Failed")
@@ -216,24 +228,6 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
         // A single model can hallucinate — consensus demands corroboration.
         // If < 2 models succeeded, refund the credit and surface a clear error.
         // ─────────────────────────────────────────────────────────────────────
-        if (completedModels.length < 2) {
-            await tryRefundReservation(
-                reservationLock._id.toString(),
-                "Insufficient model responses — credit refunded",
-                req.user!.userId
-            );
-            sendSse("insufficient_models", {
-                message: completedModels.length === 0
-                    ? "All AI models failed to respond. No risk decision can be made. Credit refunded."
-                    : "Only 1 model responded successfully. At least 2 are required for a reliable decision. Credit refunded.",
-                successCount: completedModels.length,
-                failedModels: failedModelIds,
-            });
-            res.end();
-            return;
-        }
-
-
         const validatedModelResults = completedModels.map(model => ({
             ...model,
             riskFactors: validateModelFactors(transaction, model)
@@ -250,8 +244,26 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
         });
 
         // 7. Consensus — computed exclusively from validated successful models
-        const consensus = calculateConsensus(validatedModelResults, platformRisk);
+        const consensus = completedModels.length >= 2
+            ? calculateConsensus(validatedModelResults, platformRisk)
+            : null;
+        if (consensus) {
+            // Consensus averages use only valid outputs, while availability
+            // reflects every provider requested for this analysis.
+            consensus.modelCount = selectedModels.length;
+            consensus.successfulModelCount = completedModels.length;
+            consensus.failedModelCount = failedModelIds.length;
+        }
         sendSse("consensus", consensus);
+        if (completedModels.length < 2) {
+            sendSse("consensus_unavailable", {
+                message: completedModels.length === 0
+                    ? "AI providers did not return a valid analysis. The deterministic platform decision remains available."
+                    : "Only one AI provider returned a valid analysis, so no model consensus was calculated. The deterministic platform decision remains available.",
+                successCount: completedModels.length,
+                failedModels: failedModelIds,
+            });
+        }
 
         // 8. Final Decision
         const finalDecision = calculateFinalDecision({
@@ -274,7 +286,7 @@ export async function executeRiskAnalysis(req: AuthRequest, res: Response) {
             transactionSnapshot: transaction,
             deterministicEvidence: canonicalEvidence,
             platformRisk,
-            modelResults: completedModels,
+            modelResults: [...completedModels, ...failedModels],
             validatedModelResults,
             consensus,
             reasoningComparisons,
