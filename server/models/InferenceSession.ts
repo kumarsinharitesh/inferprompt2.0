@@ -6,6 +6,8 @@ export interface IInferenceSession extends Document {
     provider: string;
     totalTokens: number;
     latencyMs: number;
+    source: "playground";
+    status: "completed";
 }
 
 const InferenceSessionSchema: Schema = new Schema(
@@ -15,6 +17,10 @@ const InferenceSessionSchema: Schema = new Schema(
         provider: { type: String, required: true },
         totalTokens: { type: Number, required: true },
         latencyMs: { type: Number, required: true },
+        // Keep analytics records explicitly scoped to a completed Playground
+        // inference. Diff and risk analysis use their own collections.
+        source: { type: String, enum: ["playground"], required: true },
+        status: { type: String, enum: ["completed"], required: true },
     },
     { timestamps: true }
 );

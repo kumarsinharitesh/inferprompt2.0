@@ -11,6 +11,7 @@ import BillingPage from "./pages/BillingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PublicOnlyRoute from "./components/PublicOnlyRoute";
 import { AuthProvider } from "./context/AuthContext";
 
 // Initialize global dependencies securely
@@ -30,8 +31,10 @@ const App: React.FC = () => {
           <main id="main-content">
             <Routes>
               <Route path="/" element={<WelcomePage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              <Route element={<PublicOnlyRoute />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+              </Route>
 
               {/* Protected Execution Routes */}
               <Route element={<ProtectedRoute />}>

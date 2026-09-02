@@ -1,6 +1,7 @@
 import type { InferenceProvider, InferenceRequest } from "../../types";
 import { local } from "../../utils/storage";
 import { makeSseStream } from "../../utils/sseParser";
+import { parseModelRiskResult } from "../riskResultParser";
 
 interface OpenRouterResponse {
   choices?: Array<{
@@ -43,7 +44,7 @@ export class OpenRouterProvider implements InferenceProvider {
     this.key = rawKey.trim().replace(/^openrouter-/i, "");
   }
 
-  private async completeRisk(req: InferenceRequest, structuredOutput: boolean): Promise<string> {
+  private async completeRisk(req: InferenceRequest, structuredOutput: boolean, reinforceJson = false): Promise<string> {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -58,6 +59,10 @@ export class OpenRouterProvider implements InferenceProvider {
         model: this.freeRouterModel,
         messages: [
           ...(req.systemPrompt ? [{ role: "system", content: req.systemPrompt }] : []),
+          ...(reinforceJson ? [{
+            role: "system",
+            content: "Return exactly one valid JSON object matching the requested risk schema. Do not include prose, markdown, or reasoning outside the JSON object.",
+          }] : []),
           { role: "user", content: req.text ?? "" },
         ],
         stream: false,
@@ -81,7 +86,23 @@ export class OpenRouterProvider implements InferenceProvider {
         ? messageContent.map(part => part.text ?? "").join("").trim()
         : "";
     if (!content) throw new Error("OpenRouter returned an empty risk completion");
-    return extractJsonObject(content);
+    const candidate = extractJsonObject(content);
+
+    // Validate before handing the response to the SSE analysis pipeline. Free
+    // router models occasionally ignore JSON mode; retrying here prevents a
+    // non-JSON answer from becoming a late parser failure in the UI.
+    const normalized = parseModelRiskResult("openrouter", candidate, { latencyMs: 0, tokenCount: 0 });
+    if (normalized.error) {
+      throw new Error(normalized.error);
+    }
+    return JSON.stringify({
+      riskScore: normalized.riskScore,
+      riskLevel: normalized.riskLevel,
+      recommendation: normalized.recommendation,
+      confidence: normalized.confidence,
+      reasoning: normalized.reasoning,
+      riskFactors: normalized.riskFactors,
+    });
   }
 
   async streamResponse(req: InferenceRequest): Promise<ReadableStream<Uint8Array>> {
@@ -92,23 +113,25 @@ export class OpenRouterProvider implements InferenceProvider {
     const isRiskAnalysis = /payment[- ]risk analysis/i.test(req.systemPrompt ?? "");
 
     if (isRiskAnalysis) {
-      try {
-        return streamFromText(await this.completeRisk(req, true));
-      } catch (structuredError: any) {
-        if (structuredError?.name === "AbortError") throw structuredError;
-        // Some models selected by the free router can produce JSON but do not
-        // implement response_format. Retry once without that optional feature.
+      let lastError: any;
+      // Try the native JSON mode first, then two safe fallbacks for models
+      // behind the free router that either do not support or ignore it.
+      for (const attempt of [
+        { structuredOutput: true, reinforceJson: false },
+        { structuredOutput: false, reinforceJson: false },
+        { structuredOutput: false, reinforceJson: true },
+      ]) {
         try {
-          return streamFromText(await this.completeRisk(req, false));
-        } catch (fallbackError: any) {
-          if (fallbackError?.name === "AbortError") throw fallbackError;
-          const status = fallbackError?.status ?? structuredError?.status;
-          if (status === 429) {
-            throw new Error("OpenRouter free capacity is temporarily busy. Please retry in a moment or add your own OpenRouter key in Keys.");
-          }
-          throw new Error(`OpenRouter risk analysis could not return a valid JSON result: ${fallbackError?.message ?? structuredError?.message ?? "unknown error"}`);
+          return streamFromText(await this.completeRisk(req, attempt.structuredOutput, attempt.reinforceJson));
+        } catch (error: any) {
+          if (error?.name === "AbortError") throw error;
+          lastError = error;
         }
       }
+      if (lastError?.status === 429) {
+        throw new Error("OpenRouter free capacity is temporarily busy. Please retry in a moment or add your own OpenRouter key in Keys.");
+      }
+      throw new Error(`OpenRouter risk analysis could not return a valid JSON result after retrying: ${lastError?.message ?? "unknown error"}`);
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

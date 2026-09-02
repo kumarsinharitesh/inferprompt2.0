@@ -10,7 +10,13 @@ router.post("/analyze", authMiddleware as any, executeRiskAnalysis as any);
 
 router.get("/history", authMiddleware, async (req: AuthRequest, res) => {
     try {
-        const history = await RiskAnalysis.find({ userId: req.user?.userId })
+        // The orchestrator creates the authoritative record together with its
+        // credit reservation. Older browser-written records had no reservation
+        // and duplicated every completed analysis, corrupting analytics.
+        const history = await RiskAnalysis.find({
+            userId: req.user?.userId,
+            creditTransactionId: { $exists: true, $ne: null }
+        })
             .sort({ createdAt: -1 })
             .limit(50);
 
@@ -19,33 +25,12 @@ router.get("/history", authMiddleware, async (req: AuthRequest, res) => {
             return {
                 ...obj,
                 transaction: obj.transactionSnapshot,
-                reasoningComparisons: obj.abtd,
+                reasoningComparisons: obj.reasoningComparisons ?? obj.abtd,
             };
         });
         res.json(mappedHistory);
     } catch (err) {
         res.status(500).json({ error: "Failed to retrieve risk history" });
-    }
-});
-
-router.post("/history", authMiddleware, async (req: AuthRequest, res) => {
-    try {
-        const { analysisId, transaction, platformRisk, modelResults, consensus, reasoningComparisons } = req.body;
-
-        const risk = new RiskAnalysis({
-            userId: req.user?.userId,
-            analysisId: analysisId || `dip-${Date.now()}`,
-            transactionSnapshot: transaction,
-            platformRisk,
-            modelResults,
-            consensus,
-            abtd: reasoningComparisons
-        });
-
-        await risk.save();
-        res.status(201).json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: "Failed to store risk history" });
     }
 });
 

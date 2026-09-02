@@ -67,6 +67,24 @@ async function runTests() {
     assert(!("response_format" in calls[1]), "Fallback must omit unsupported response_format");
     assert(calls.every(call => call.model === "openrouter/free"), "Fallback must never pin a retiring free model");
 
+    calls.length = 0;
+    globalThis.fetch = (async (_input, init) => {
+      calls.push(JSON.parse(String(init?.body)));
+      const content = calls.length === 1
+        ? "I cannot provide JSON right now."
+        : JSON.stringify(validRisk);
+      return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+    }) as typeof fetch;
+
+    const recoveredStream = await provider.streamResponse({
+      mode: "text",
+      provider: "openrouter",
+      systemPrompt: "You are a payment-risk analysis model.",
+      text: "Analyse this transaction.",
+    });
+    assert(await readStream(recoveredStream) === JSON.stringify(validRisk), "A non-JSON first completion must be retried before it reaches the parser");
+    assert(calls.length === 2, "Invalid JSON should trigger exactly one fallback before a valid response");
+
     const normalized = parseModelRiskResult("openrouter", JSON.stringify({
       risk_score: "0.72",
       confidence_score: "0.81",

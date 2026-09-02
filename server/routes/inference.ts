@@ -7,6 +7,8 @@ import type { Provider } from "../../src/types";
 const router = express.Router();
 
 const hasConfiguredKey = (...names: string[]) => names.some(name => Boolean(process.env[name]?.trim()));
+const ANALYTICS_PROVIDERS = ["sarvam", "openrouter", "gemini", "groq"] as const;
+const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Returns availability only. API key values are never sent to the browser.
 router.get("/providers", (_req, res) => {
@@ -77,11 +79,22 @@ router.post("/stream", authMiddleware, async (req: AuthRequest, res) => {
 
 router.get("/history", authMiddleware, async (req: AuthRequest, res) => {
     try {
-        // Mock was removed from the product. Hide legacy records rather than
-        // misrepresenting old development data as a live provider.
+        // Analytics is intentionally Playground-only. Do not let incomplete,
+        // mock, Diff, or risk-analysis records affect these metrics. Legacy
+        // browser records are accepted only when they have a real UUID and
+        // complete, positive measurements.
         const history = await InferenceSession.find({
             userId: req.user?.userId,
-            provider: { $in: ["sarvam", "openrouter", "gemini", "groq"] }
+            provider: { $in: ANALYTICS_PROVIDERS },
+            totalTokens: { $gt: 0 },
+            latencyMs: { $gt: 0 },
+            $or: [
+                { source: "playground", status: "completed" },
+                {
+                    source: { $exists: false },
+                    sessionId: { $regex: SESSION_ID_PATTERN },
+                },
+            ],
         })
             .sort({ createdAt: -1 })
             .limit(50);
@@ -94,14 +107,34 @@ router.get("/history", authMiddleware, async (req: AuthRequest, res) => {
 router.post("/history", authMiddleware, async (req: AuthRequest, res) => {
     try {
         const { sessionId, provider, totalTokens, latencyMs } = req.body;
-        const session = new InferenceSession({
-            userId: req.user?.userId,
-            sessionId: sessionId || `session-${Date.now()}`,
-            provider: provider || "unknown",
-            totalTokens: totalTokens || 0,
-            latencyMs: latencyMs || 0,
-        });
-        await session.save();
+        const tokenCount = Number(totalTokens);
+        const durationMs = Number(latencyMs);
+
+        if (
+            typeof sessionId !== "string" || !SESSION_ID_PATTERN.test(sessionId) ||
+            !ANALYTICS_PROVIDERS.includes(provider) ||
+            !Number.isFinite(tokenCount) || tokenCount <= 0 ||
+            !Number.isFinite(durationMs) || durationMs <= 0
+        ) {
+            return res.status(400).json({ error: "Invalid completed Playground session metrics" });
+        }
+
+        // An identical client retry must not inflate dashboard totals.
+        await InferenceSession.updateOne(
+            { userId: req.user?.userId, sessionId },
+            {
+                $setOnInsert: {
+                    userId: req.user?.userId,
+                    sessionId,
+                    provider,
+                    totalTokens: tokenCount,
+                    latencyMs: durationMs,
+                    source: "playground",
+                    status: "completed",
+                },
+            },
+            { upsert: true }
+        );
         res.status(201).json({ success: true });
     } catch (err) {
         console.error("Failed to save inference session:", err);

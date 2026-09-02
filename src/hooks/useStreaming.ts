@@ -112,11 +112,20 @@ export function useStreaming(): StreamingState {
         let buf = "";
         let nextLineIsError = false;
         let streamDone = false;
+        let receivedChunk = false;
 
         timeoutRef.current = setTimeout(() => {
           controller.abort();
-          setStatus("error");
-          setError(`Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s.`);
+          // OpenRouter can finish the generated text before an upstream proxy
+          // closes its SSE connection. Keep a completed response rather than
+          // showing a false failure after visible output has arrived.
+          if (receivedChunk) {
+            setStatus("done");
+            setError(null);
+          } else {
+            setStatus("error");
+            setError(`Stream timed out after ${STREAM_TIMEOUT_MS / 1000}s.`);
+          }
         }, STREAM_TIMEOUT_MS);
 
         while (true) {
@@ -142,6 +151,7 @@ export function useStreaming(): StreamingState {
             if (trimmed.startsWith("event: done")) {
               // Server signals completion — stop re-arming the stall timeout
               streamDone = true;
+              clearStreamTimeout();
               continue;
             }
             if (!trimmed.startsWith("data:")) continue;
@@ -156,6 +166,7 @@ export function useStreaming(): StreamingState {
               }
               nextLineIsError = false;
               if (parsed.chunk) {
+                receivedChunk = true;
                 collectedTokens.push(parsed.chunk);
                 setTokens((prev) => [...prev, parsed.chunk]);
                 const m = computeMetrics(collectedTokens, startTime);
@@ -166,8 +177,13 @@ export function useStreaming(): StreamingState {
                 if (!streamDone) {
                   timeoutRef.current = setTimeout(() => {
                     controller.abort();
-                    setStatus("error");
-                    setError("Stream stalled — no data received for 30s.");
+                    if (receivedChunk) {
+                      setStatus("done");
+                      setError(null);
+                    } else {
+                      setStatus("error");
+                      setError("Stream stalled — no data received for 30s.");
+                    }
                   }, STREAM_TIMEOUT_MS);
                 }
               }

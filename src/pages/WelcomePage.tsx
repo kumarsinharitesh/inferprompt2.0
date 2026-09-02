@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { CREDIT_PACKS } from "../config/billing";
+import { useAuth } from "../context/AuthContext";
 
 const DEMO_TOKENS = [
   "Transformer", " attention", " works", " by", " computing",
@@ -58,8 +59,10 @@ const StatPill: React.FC<{ value: string; label: string }> = ({ value, label }) 
 );
 
 const WelcomePage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [visibleTokens, setVisibleTokens] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const getStartedPath = isAuthenticated ? "/playground" : "/register";
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -113,7 +116,7 @@ const WelcomePage: React.FC = () => {
 
         <div className="relative z-10 flex flex-wrap items-center justify-center gap-3">
           <Link
-            to="/register"
+            to={getStartedPath}
             className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 px-6 py-3
                        text-sm font-semibold text-black transition-all active:scale-95
                        focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-[#0b0b0f]"
@@ -121,7 +124,7 @@ const WelcomePage: React.FC = () => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
-            Start Free — 5 Credits
+            {isAuthenticated ? "Open Playground" : "Start Free — 5 Credits"}
           </Link>
           <Link
             to="/playground"
@@ -245,8 +248,8 @@ const WelcomePage: React.FC = () => {
                 </li>
               ))}
             </ul>
-            <Link to="/register" className="mt-auto w-full text-center bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
-              Get Started Free
+            <Link to={getStartedPath} className="mt-auto w-full text-center bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
+              {isAuthenticated ? "Open Playground" : "Get Started Free"}
             </Link>
           </div>
 
@@ -301,7 +304,7 @@ const WelcomePage: React.FC = () => {
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Link
-              to="/register"
+              to={getStartedPath}
               className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 px-8 py-3.5
                          text-sm font-semibold text-black transition-all active:scale-95
                          focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -309,7 +312,7 @@ const WelcomePage: React.FC = () => {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
-              Create Free Account
+              {isAuthenticated ? "Open Playground" : "Create Free Account"}
             </Link>
             <Link
               to="/playground"

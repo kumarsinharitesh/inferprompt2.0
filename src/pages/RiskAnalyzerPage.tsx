@@ -176,19 +176,6 @@ const RiskAnalyzerPage: React.FC = () => {
                     setReasoningComparisons(dataValue.reasoningComparisons);
                 } else if (eventName === "analysis_complete") {
                     toast.success("Risk analysis complete!", { id: loadingToastId });
-                    fetch(`/api/risk/history`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({
-                            analysisId: `analysis-${currentRunId}`,
-                            transaction: req.transaction,
-                            platformRisk: _platformResult,
-                            modelResults: Object.values(_modelResults),
-                            consensus: _consensusResult,
-                            reasoningComparisons: _reasoningComparisons
-                        })
-                    }).catch(err => console.error("History logging failed", err));
                 } else if (eventName === "error") {
                     throw new Error(dataValue.message || "Analysis service failed.");
                 }

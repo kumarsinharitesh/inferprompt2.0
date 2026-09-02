@@ -21,6 +21,51 @@ interface ChartRow {
   latency: number; // seconds
 }
 
+const LIVE_PROVIDERS = new Set(["sarvam", "openrouter", "gemini", "groq"]);
+
+/** Convert an API field into a usable positive measurement, never a placeholder. */
+function positiveNumber(value: unknown): number | null {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+/**
+ * Analytics owns this boundary: only a complete, persisted Playground stream
+ * can become a chart row. This prevents legacy/partial data from Diff or Risk
+ * Analysis being interpreted as inference throughput.
+ */
+function mapCompletedPlaygroundSessions(data: unknown): SessionRecord[] {
+  if (!Array.isArray(data)) return [];
+
+  return data.flatMap((item): SessionRecord[] => {
+    if (!item || typeof item !== "object") return [];
+    const session = item as Record<string, unknown>;
+    const provider = typeof session.provider === "string" ? session.provider : "";
+    const id = typeof session._id === "string"
+      ? session._id
+      : typeof session.sessionId === "string" ? session.sessionId : "";
+    const tokenCount = positiveNumber(session.totalTokens);
+    const latencyMs = positiveNumber(session.latencyMs);
+    const timestamp = typeof session.createdAt === "string" ? Date.parse(session.createdAt) : NaN;
+
+    if (!LIVE_PROVIDERS.has(provider) || !id || tokenCount === null || latencyMs === null || !Number.isFinite(timestamp)) {
+      return [];
+    }
+
+    return [{
+      id,
+      timestamp,
+      prompt: "",
+      provider: provider as SessionRecord["provider"],
+      tokenCount,
+      // Derive speed from the canonical stored values rather than trusting a
+      // stale, client-calculated field from an older record.
+      tokensPerSec: Math.round((tokenCount / (latencyMs / 1000)) * 10) / 10,
+      latencyMs,
+    }];
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -224,21 +269,7 @@ const AnalyticsDashboard: React.FC = () => {
       if (inferenceResult.status === "fulfilled" && inferenceResult.value.ok) {
         const infData = await inferenceResult.value.json();
 
-        const liveProviders = new Set(["sarvam", "openrouter", "gemini", "groq"]);
-        const mappedSessions: SessionRecord[] = (infData as any[])
-          .filter(s => liveProviders.has(s.provider))
-          .map(s => ({
-          id: s._id || s.sessionId || String(Math.random()),
-          sessionId: s.sessionId || "",
-          timestamp: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
-          prompt: s.prompt || "",
-          provider: s.provider || "unknown",
-          tokenCount: s.tokenCount ?? s.totalTokens ?? 0,
-          tokensPerSec: s.tokensPerSec ?? (s.totalTokens && s.latencyMs ? Math.round((s.totalTokens / (s.latencyMs / 1000)) * 10) / 10 : 0),
-          latencyMs: s.latencyMs ?? 0,
-            similarityPct: s.similarityPct,
-          }));
-        setSessions(mappedSessions);
+        setSessions(mapCompletedPlaygroundSessions(infData));
       } else {
         toast.error("Inference history could not be refreshed.");
       }
@@ -301,11 +332,18 @@ const AnalyticsDashboard: React.FC = () => {
     table: "The raw metrics behind each completed Playground session.",
   };
 
+  const measuredSessions = sessions.filter(s => (s.latencyMs ?? 0) > 0);
+  const totalMeasuredTokens = measuredSessions.reduce((sum, session) => sum + (session.tokenCount ?? 0), 0);
+  const totalMeasuredLatencyMs = measuredSessions.reduce((sum, session) => sum + (session.latencyMs ?? 0), 0);
+  const overallTokensPerSecond = totalMeasuredLatencyMs > 0
+    ? Math.round(totalMeasuredTokens / (totalMeasuredLatencyMs / 1000))
+    : 0;
+
   const totals = hasData
     ? [
       { label: "Total Tokens", value: sessions.reduce((a, s) => a + (s.tokenCount ?? 0), 0).toLocaleString(), color: "text-amber-400" },
-      { label: "Avg tok/s", value: String(Math.round(sessions.reduce((a, s) => a + (s.tokensPerSec ?? 0), 0) / sessions.length)), color: "text-cyan-400" },
-      { label: "Avg Latency", value: `${(sessions.reduce((a, s) => a + (s.latencyMs ?? 0), 0) / sessions.length / 1000).toFixed(2)}s`, color: "text-slate-300" },
+      { label: "Avg tok/s", value: overallTokensPerSecond > 0 ? String(overallTokensPerSecond) : "—", color: "text-cyan-400" },
+      { label: "Avg Latency", value: measuredSessions.length > 0 ? `${(totalMeasuredLatencyMs / measuredSessions.length / 1000).toFixed(2)}s` : "—", color: "text-slate-300" },
       { label: "Sessions", value: String(sessions.length), color: "text-purple-400" },
     ]
     : [
