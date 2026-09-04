@@ -4,8 +4,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User";
 import CreditBalance from "../models/CreditBalance";
 import CreditLedger from "../models/CreditLedger";
-import OTP from "../models/OTP";
-import { sendOTPEmail, sendResetPasswordEmail } from "../utils/email";
+import { sendSupabaseEmailOtp, SupabaseOtpError, verifySupabaseEmailOtp } from "../utils/supabaseOtp";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
@@ -13,18 +12,19 @@ const router = express.Router();
 const normalizeEmail = (value: unknown) => typeof value === "string" ? value.trim().toLowerCase() : "";
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-function emailFailure(res: express.Response, err: any) {
+function otpFailure(res: express.Response, err: any) {
     const message = String(err?.message || "");
-    const configurationProblem = message.includes("EMAIL_DELIVERY_NOT_CONFIGURED") || err?.code === "EAUTH" || err?.code === "ECONNECTION" || err?.code === "ETIMEDOUT";
-    return res.status(configurationProblem ? 503 : 502).json({
-        error: configurationProblem
-            ? "Email delivery is not configured on the server. Set SMTP_USER and SMTP_PASS (or EMAIL_USER and EMAIL_PASS)."
-            : "We could not deliver the OTP. Please try again shortly."
+    if (message.includes("SUPABASE_OTP_NOT_CONFIGURED")) {
+        return res.status(503).json({
+            error: "Email OTP is not configured on the server. Set SUPABASE_URL and SUPABASE_ANON_KEY."
+        });
+    }
+    if (err instanceof SupabaseOtpError && err.status === 429) {
+        return res.status(429).json({ error: "Please wait a minute before requesting another verification code." });
+    }
+    return res.status(502).json({
+        error: "We could not deliver the verification code. Please try again shortly."
     });
-}
-
-function generateOTP(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 const getSecret = () => {
@@ -52,21 +52,15 @@ router.post("/send-otp", async (req, res) => {
             return res.status(409).json({ error: "An account with this email already exists." });
         }
 
-        // Generate OTP and store (replace any previous OTP for this email)
-        const code = generateOTP();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        // Send before replacing the existing code. A temporary mail-provider
-        // failure therefore never invalidates an OTP the user already received.
-        await sendOTPEmail(email, code, name);
-        await OTP.findOneAndDelete({ email });
-        await OTP.create({ email, code, expiresAt });
+        // Supabase Auth delivers and verifies the OTP. MongoDB remains the
+        // application database and does not store authentication codes.
+        await sendSupabaseEmailOtp(email, name, true);
 
         console.log(`[OTP] Sent to ${email}`);
         return res.json({ message: "OTP sent successfully. Please check your email." });
     } catch (err: any) {
         console.error("send-otp error:", err);
-        return emailFailure(res, err);
+        return otpFailure(res, err);
     }
 });
 
@@ -76,25 +70,18 @@ router.post("/send-otp", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/verify-otp", async (req, res) => {
     try {
-        const { name, email, password, code } = req.body;
+        const { name, password, code } = req.body;
+        const email = normalizeEmail(req.body.email);
 
         if (!email || !code || !name || !password) {
             return res.status(400).json({ error: "All fields are required." });
         }
 
-        const otpRecord = await OTP.findOne({ email: email.toLowerCase() });
-
-        if (!otpRecord) {
-            return res.status(400).json({ error: "OTP expired or not found. Please request a new one." });
-        }
-
-        if (otpRecord.code !== code.trim()) {
-            return res.status(400).json({ error: "Incorrect OTP. Please try again." });
-        }
-
-        if (new Date() > otpRecord.expiresAt) {
-            await OTP.findOneAndDelete({ email: email.toLowerCase() });
-            return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+        try {
+            await verifySupabaseEmailOtp(email, code.trim());
+        } catch (err: any) {
+            if (String(err?.message || "").includes("SUPABASE_OTP_NOT_CONFIGURED")) return otpFailure(res, err);
+            return res.status(400).json({ error: "Incorrect or expired OTP. Please request a new one." });
         }
 
         // OTP valid — create user
@@ -104,9 +91,6 @@ router.post("/verify-otp", async (req, res) => {
 
         // Initialize free credits (5 on signup — buy more after)
         await CreditBalance.create({ userId: user._id, balance: 5 });
-
-        // Clean up OTP
-        await OTP.findOneAndDelete({ email: email.toLowerCase() });
 
         console.log(`[Auth] New user registered: ${email}`);
         return res.status(201).json({ message: "Account created successfully! You can now log in." });
@@ -137,19 +121,17 @@ router.post("/forgot-password", async (req, res) => {
             return res.status(404).json({ error: "No account found with this email." });
         }
 
-        const code = generateOTP();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-        await sendResetPasswordEmail(email, code, user.name);
-        await OTP.findOneAndDelete({ email });
-        await OTP.create({ email, code, expiresAt });
+        // Existing InferPrompt users may predate Supabase Auth. Creating the
+        // matching Auth identity here lets them use the same OTP reset flow
+        // without migrating any MongoDB application data.
+        await sendSupabaseEmailOtp(email, undefined, true);
 
         console.log(`[Auth] Password reset OTP sent to ${email}`);
         return res.json({ message: "Password reset OTP sent successfully." });
 
     } catch (err: any) {
         console.error("forgot-password error:", err);
-        return emailFailure(res, err);
+        return otpFailure(res, err);
     }
 });
 
@@ -159,23 +141,17 @@ router.post("/forgot-password", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/reset-password", async (req, res) => {
     try {
-        const { email, code, newPassword } = req.body;
+        const { code, newPassword } = req.body;
+        const email = normalizeEmail(req.body.email);
         if (!email || !code || !newPassword || newPassword.length < 8) {
             return res.status(400).json({ error: "Email, OTP, and a new password (min 8 chars) are required." });
         }
 
-        const otpRecord = await OTP.findOne({ email: email.toLowerCase() });
-        if (!otpRecord) {
-            return res.status(400).json({ error: "OTP expired or not found. Please request a new one." });
-        }
-
-        if (otpRecord.code !== code.trim()) {
-            return res.status(400).json({ error: "Incorrect OTP. Please try again." });
-        }
-
-        if (new Date() > otpRecord.expiresAt) {
-            await OTP.findOneAndDelete({ email: email.toLowerCase() });
-            return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+        try {
+            await verifySupabaseEmailOtp(email, code.trim());
+        } catch (err: any) {
+            if (String(err?.message || "").includes("SUPABASE_OTP_NOT_CONFIGURED")) return otpFailure(res, err);
+            return res.status(400).json({ error: "Incorrect or expired OTP. Please request a new one." });
         }
 
         const user = await User.findOne({ email: email.toLowerCase() });
@@ -186,8 +162,6 @@ router.post("/reset-password", async (req, res) => {
         const passwordHash = await bcrypt.hash(newPassword, 10);
         user.passwordHash = passwordHash;
         await user.save();
-
-        await OTP.findOneAndDelete({ email: email.toLowerCase() });
 
         console.log(`[Auth] Password reset successful for ${email}`);
         return res.json({ message: "Password has been reset successfully. You can now log in." });
