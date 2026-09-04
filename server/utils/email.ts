@@ -1,13 +1,14 @@
 import nodemailer from "nodemailer";
-import { Resend } from "resend";
 
-const fromAddress = () => process.env.EMAIL_FROM || process.env.RESEND_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
+// SMTP is the single delivery path. EMAIL_USER/EMAIL_PASS remain supported
+// so an existing local or Render SMTP configuration keeps working unchanged.
+const fromAddress = () => process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
 
 function getSmtpTransporter() {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const rawPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
   if (!user || !rawPass) {
-    throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: set RESEND_API_KEY or SMTP_USER/SMTP_PASS.");
+    throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: set SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS.");
   }
 
   const port = Number(process.env.SMTP_PORT || "587");
@@ -43,16 +44,6 @@ function emailHtml(title: string, copy: string, otp: string, footer: string) {
 async function deliver(to: string, subject: string, html: string) {
   const from = fromAddress();
   if (!from) throw new Error("EMAIL_DELIVERY_NOT_CONFIGURED: set EMAIL_FROM or SMTP_USER.");
-
-  // Resend is preferred on Render because it does not rely on long-lived SMTP
-  // sockets. SMTP remains fully supported for existing Gmail App Password setups.
-  if (process.env.RESEND_API_KEY?.trim()) {
-    const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
-      from: `InferPrompt <${from}>`, to, subject, html,
-    });
-    if (result.error) throw new Error(`EMAIL_DELIVERY_FAILED: ${result.error.message}`);
-    return;
-  }
 
   const transporter = getSmtpTransporter();
   await transporter.sendMail({ from: `InferPrompt <${from}>`, to, subject, html });

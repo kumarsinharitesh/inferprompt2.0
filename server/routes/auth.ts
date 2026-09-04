@@ -18,7 +18,7 @@ function emailFailure(res: express.Response, err: any) {
     const configurationProblem = message.includes("EMAIL_DELIVERY_NOT_CONFIGURED") || err?.code === "EAUTH" || err?.code === "ECONNECTION" || err?.code === "ETIMEDOUT";
     return res.status(configurationProblem ? 503 : 502).json({
         error: configurationProblem
-            ? "Email delivery is not configured on the server. Set RESEND_API_KEY and EMAIL_FROM, or SMTP_USER and SMTP_PASS."
+            ? "Email delivery is not configured on the server. Set SMTP_USER and SMTP_PASS (or EMAIL_USER and EMAIL_PASS)."
             : "We could not deliver the OTP. Please try again shortly."
     });
 }
